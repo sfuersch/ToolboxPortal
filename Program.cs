@@ -6,9 +6,30 @@ using ToolboxPortal.Components.Account;
 using ToolboxPortal.Data;
 using ToolboxPortal.Services;
 using System.Text;
+using Microsoft.AspNetCore.HttpOverrides;
+
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedProto |
+        ForwardedHeaders.XForwardedHost;
+
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.LoginPath = "/Account/Login";
+});
+
 var builder = WebApplication.CreateBuilder(args);
+app.UseForwardedHeaders();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -65,7 +86,7 @@ else
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ToolboxPortal.Models;
@@ -20,5 +21,16 @@ namespace ToolboxPortal.Data
         public DbSet<ThgMailTemplate> ThgMailTemplates { get; set; }
 
         public DbSet<ThgFollowUpSettings> ThgFollowUpSettings { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+
+            builder.Entity<IdentityUserPasskey<string>>()
+                .OwnsOne(x => x.Data, owned =>
+                {
+                    owned.ToJson("Data");
+                });
+        }
     }
 }

@@ -1,0 +1,385 @@
+﻿@page "/tools/ai"
+@attribute [Authorize]
+
+@using ToolboxPortal.Services
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject OpenAiService OpenAiService
+@inject IJSRuntime JS
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>KI Chat</PageTitle>
+
+<div class="chat-layout">
+
+    <aside class="chat-history-panel">
+
+        <button class="new-chat-btn" @onclick="StartNewChat">
+            + Neuer Chat
+        </button>
+
+        <div class="chat-session-list">
+
+            @foreach (var session in chatSessions)
+            {
+                <div class="chat-session-row @(activeSessionId == session.Id ? "active" : "")">
+
+                    <button class="chat-session-item"
+                            @onclick="() => LoadChatSession(session.Id)">
+                        <span>@session.Title</span>
+                        <small>@session.UpdatedAt.ToLocalTime().ToString("dd.MM. HH:mm")</small>
+                    </button>
+
+                    <button class="chat-delete-btn"
+                            title="Chat löschen"
+                            @onclick="() => DeleteChatSession(session.Id)">
+                        ×
+                    </button>
+
+                </div>
+            }
+
+        </div>
+
+    </aside>
+
+    <section class="chat-page">
+
+        <div class="chat-header">
+            <h1>KI Chat</h1>
+            <p>Stelle eine Frage oder lasse dir Inhalte generieren.</p>
+        </div>
+
+        <div class="chat-window">
+
+            @if (messages.Count == 0)
+            {
+                <div class="chat-empty">
+                    <h2>Womit kann ich helfen?</h2>
+                    <p>Starte mit einer Frage, einem Textauftrag oder einer Idee.</p>
+                </div>
+            }
+
+            @foreach (var message in messages)
+            {
+                <div class="chat-message @(message.Role == "user" ? "user" : "assistant")">
+
+                    <div class="chat-bubble">
+
+                        <div class="chat-role">
+                            @(message.Role == "user" ? "Du" : "Toolbox KI")
+                        </div>
+
+                        <div class="chat-text">
+                            @message.Content
+                        </div>
+
+                        @if (message.Role == "assistant")
+                        {
+                            <button class="copy-btn chat-copy"
+                                    @onclick="() => CopyText(message.Content)">
+                                Kopieren
+                            </button>
+                        }
+
+                    </div>
+
+                </div>
+            }
+
+        </div>
+
+        <div class="chat-input-area">
+
+            <textarea class="chat-input"
+                      rows="1"
+                      placeholder="Nachricht eingeben..."
+                      @bind="prompt"
+                          @bind:event="oninput">
+            </textarea>
+
+                <button class="chat-send"
+                        @onclick="SendMessage"
+                        disabled="@isLoading">
+                    @(isLoading ? "..." : "Senden")
+                </button>
+
+            </div>
+
+        </section>
+
+    </div>
+
+@code {
+
+    private string prompt = "";
+    private bool isLoading;
+
+    private string? currentUserId;
+    private int? activeSessionId;
+
+    private List<AiChatSession> chatSessions = new();
+    private List<OpenAiMessage> messages = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await GetCurrentUser();
+
+        if (user == null)
+        {
+            return;
+        }
+
+        currentUserId = user.Id;
+
+        await LoadChatSessions();
+    }
+
+    private async Task DeleteChatSession(int sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        var session = await DbContext.AiChatSessions
+            .Include(x => x.Messages)
+            .FirstOrDefaultAsync(x => x.Id == sessionId && x.UserId == currentUserId);
+
+        if (session == null)
+        {
+            return;
+        }
+
+        DbContext.AiChatMessages.RemoveRange(session.Messages);
+        DbContext.AiChatSessions.Remove(session);
+
+        await DbContext.SaveChangesAsync();
+
+        if (activeSessionId == sessionId)
+        {
+            activeSessionId = null;
+            messages = new();
+            prompt = "";
+        }
+
+        await LoadChatSessions();
+    }
+
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(prompt) || isLoading || string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        if (activeSessionId == null)
+        {
+            await CreateChatSession(prompt.Trim());
+        }
+
+        if (activeSessionId == null)
+        {
+            return;
+        }
+
+        var userPrompt = prompt.Trim();
+        prompt = "";
+
+        var userMessage = new OpenAiMessage
+        {
+            Role = "user",
+            Content = userPrompt
+        };
+
+        messages.Add(userMessage);
+
+        await SaveChatMessage(activeSessionId.Value, "user", userPrompt);
+
+        var assistantMessage = new OpenAiMessage
+        {
+            Role = "assistant",
+            Content = ""
+        };
+
+        messages.Add(assistantMessage);
+
+        isLoading = true;
+
+        try
+        {
+            var messagesForApi = messages
+    .TakeLast(10)
+    .ToList();
+
+            await foreach (var chunk in OpenAiService.StreamText(messagesForApi))
+            {
+                assistantMessage.Content += chunk;
+                await InvokeAsync(StateHasChanged);
+            }
+
+            await SaveChatMessage(activeSessionId.Value, "assistant", assistantMessage.Content);
+
+            await SaveGeneration(userPrompt, assistantMessage.Content);
+
+            await UpdateSessionTimestamp(activeSessionId.Value);
+
+            await LoadChatSessions();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task<ApplicationUser?> GetCurrentUser()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        return await UserManager.GetUserAsync(authState.User);
+    }
+
+    private async Task LoadChatSessions()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        chatSessions = await DbContext.AiChatSessions
+            .Where(x => x.UserId == currentUserId)
+            .OrderByDescending(x => x.UpdatedAt)
+            .Take(30)
+            .ToListAsync();
+    }
+
+    private async Task CreateChatSession(string firstPrompt)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        var title = firstPrompt.Length > 40
+            ? firstPrompt[..40] + "..."
+            : firstPrompt;
+
+        var session = new AiChatSession
+        {
+            UserId = currentUserId,
+            Title = title,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        DbContext.AiChatSessions.Add(session);
+
+        await DbContext.SaveChangesAsync();
+
+        activeSessionId = session.Id;
+
+        await LoadChatSessions();
+    }
+
+    private async Task LoadChatSession(int sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        var session = await DbContext.AiChatSessions
+            .Include(x => x.Messages)
+            .FirstOrDefaultAsync(x => x.Id == sessionId && x.UserId == currentUserId);
+
+        if (session == null)
+        {
+            return;
+        }
+
+        activeSessionId = session.Id;
+
+        messages = session.Messages
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => new OpenAiMessage
+            {
+                Role = x.Role,
+                Content = x.Content
+            })
+            .ToList();
+    }
+
+    private async Task SaveChatMessage(int sessionId, string role, string content)
+    {
+        var message = new AiChatMessage
+        {
+            AiChatSessionId = sessionId,
+            Role = role,
+            Content = content,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        DbContext.AiChatMessages.Add(message);
+
+        await DbContext.SaveChangesAsync();
+    }
+
+    private async Task UpdateSessionTimestamp(int sessionId)
+    {
+        var session = await DbContext.AiChatSessions
+            .FirstOrDefaultAsync(x => x.Id == sessionId);
+
+        if (session == null)
+        {
+            return;
+        }
+
+        session.UpdatedAt = DateTime.UtcNow;
+
+        await DbContext.SaveChangesAsync();
+    }
+
+    private async Task StartNewChat()
+    {
+        activeSessionId = null;
+        messages = new();
+        prompt = "";
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveGeneration(string userPrompt, string assistantResult)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        var generation = new AiGeneration
+        {
+            UserId = currentUserId,
+            Prompt = userPrompt,
+            Result = assistantResult,
+            Model = "gpt-4.1-mini",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        DbContext.AiGenerations.Add(generation);
+
+        await DbContext.SaveChangesAsync();
+    }
+
+    private async Task CopyText(string text)
+    {
+        await JS.InvokeVoidAsync("copyToClipboard", text);
+    }
+
+}

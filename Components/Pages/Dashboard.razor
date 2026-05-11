@@ -1,0 +1,62 @@
+﻿@page "/dashboard"
+@attribute [Authorize]
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1 class="page-title">Dashboard</h1>
+
+<p class="page-subtitle">
+    Wähle ein Tool aus oder erstelle später neue Module für dein Portal.
+</p>
+
+<div class="tool-grid">
+
+    <div class="tool-card">
+        <div class="tool-icon">🤖</div>
+
+        <h3>KI Tools</h3>
+
+        <p>Texte, Prompts und AI-Funktionen</p>
+
+        <a class="btn btn-primary" href="/tools/ai">
+            Öffnen
+        </a>
+    </div>
+
+    <div class="tool-card">
+        <div class="tool-icon">⚡</div>
+
+        <h3>THG-Prämie Follow-up</h3>
+
+        <p>Kundenimport, Mailversand und Registrierungsprüfung.</p>
+
+        <a class="btn btn-primary" href="/tools/thg-followup">
+            Öffnen
+        </a>
+    </div>
+
+    <div class="tool-card">
+        <div class="tool-icon">📊</div>
+
+        <h3>Datenanalyse</h3>
+
+        <p>CSV-, Excel- und Statistiktools</p>
+
+        <a class="btn btn-primary" href="/tools/data">
+            Öffnen
+        </a>
+    </div>
+
+    <div class="tool-card">
+        <div class="tool-icon">🚗</div>
+
+        <h3>Fahrzeugtools</h3>
+
+        <p>DAT, mobile.de, CXO und Fahrzeugdaten</p>
+
+        <a class="btn btn-primary" href="/tools/vehicles">
+            Öffnen
+        </a>
+    </div>
+
+</div>

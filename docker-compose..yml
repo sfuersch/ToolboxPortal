@@ -1,0 +1,43 @@
+services:
+  toolboxportal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: toolboxportal
+    restart: unless-stopped
+    ports:
+      - "5080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=toolbox-db;Port=5432;Database=toolboxportal;Username=toolboxuser;Password=${POSTGRES_PASSWORD}"
+      OpenAI__ApiKey: "${OPENAI_API_KEY}"
+      OpenAI__Model: "gpt-4.1-mini"
+      Smtp__Host: "${SMTP_HOST}"
+      Smtp__Port: "${SMTP_PORT}"
+      Smtp__Username: "${SMTP_USERNAME}"
+      Smtp__Password: "${SMTP_PASSWORD}"
+      Smtp__FromEmail: "${SMTP_FROM_EMAIL}"
+      Smtp__FromName: "${SMTP_FROM_NAME}"
+      Smtp__UseSsl: "${SMTP_USE_SSL}"
+      ThgSettings__RegistrationLink: "${THG_REGISTRATION_LINK}"
+      ThgScraping__LoginUrl: "${THG_LOGIN_URL}"
+      ThgScraping__ReferralUrl: "${THG_REFERRAL_URL}"
+      ThgScraping__Username: "${THG_USERNAME}"
+      ThgScraping__Password: "${THG_PASSWORD}"
+      ThgScraping__Headless: "true"
+    depends_on:
+      - toolbox-db
+
+  toolbox-db:
+    image: postgres:16
+    container_name: toolbox-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: toolboxportal
+      POSTGRES_USER: toolboxuser
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    volumes:
+      - toolbox_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  toolbox_postgres_data:

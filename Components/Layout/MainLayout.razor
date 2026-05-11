@@ -1,0 +1,139 @@
+﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="portal-shell">
+    <aside class="portal-sidebar">
+        <div class="portal-brand">
+            Toolbox Portal
+        </div>
+
+        <nav class="portal-nav">
+
+            <AuthorizeView>
+
+                <Authorized>
+
+                    <div class="nav-section">
+                        <div class="nav-section-title">
+                            Allgemein
+                        </div>
+
+                        <NavLink href="/dashboard">
+                            Dashboard
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-section">
+                        <div class="nav-section-title">
+                            Tools
+                        </div>
+
+                        <NavLink href="/tools/ai">
+                            KI Tools
+                        </NavLink>
+
+                        <NavLink href="/tools/thg-followup">
+                            THG-Prämie Follow-up
+                        </NavLink>
+
+                        <NavLink href="/tools/data">
+                            Datenanalyse
+                        </NavLink>
+
+                        <NavLink href="/tools/vehicles">
+                            Fahrzeugtools
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-section">
+                        <div class="nav-section-title">
+                            Konto
+                        </div>
+
+                        <NavLink href="/Account/Manage">
+                            Profil
+                        </NavLink>
+                    </div>
+
+                </Authorized>
+
+                <NotAuthorized>
+
+                    <div class="nav-section">
+
+                        <NavLink href="/Account/Login">
+                            Login
+                        </NavLink>
+
+                        <NavLink href="/Account/Register">
+                            Registrieren
+                        </NavLink>
+
+                    </div>
+
+                </NotAuthorized>
+
+            </AuthorizeView>
+
+        </nav>
+    </aside>
+
+    <main class="portal-main">
+        <header class="portal-topbar">
+
+            <button class="theme-toggle" onclick="toggleTheme()">
+                Darkmode
+            </button>
+
+            <AuthorizeView>
+
+                <Authorized>
+
+                    <div class="user-menu">
+
+                        <span class="user-name">
+                            @context.User.Identity?.Name
+                        </span>
+
+                        <a href="/Account/Manage">
+                            Profil
+                        </a>
+
+                        <form action="Account/Logout" method="post" class="logout-form">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="returnUrl" value="Account/Login" />
+
+                            <button type="submit" class="logout-btn">
+                                Logout
+                            </button>
+                        </form>
+
+                    </div>
+
+                </Authorized>
+
+                <NotAuthorized>
+
+                    <div class="user-menu">
+
+                        <a href="/Account/Login">
+                            Login
+                        </a>
+
+                        <a href="/Account/Register">
+                            Register
+                        </a>
+
+                    </div>
+
+                </NotAuthorized>
+
+            </AuthorizeView>
+
+        </header>
+
+        <section class="portal-content">
+            @Body
+        </section>
+    </main>
+</div>

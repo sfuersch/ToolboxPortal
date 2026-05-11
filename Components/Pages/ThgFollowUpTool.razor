@@ -1,0 +1,1248 @@
+﻿@page "/tools/thg-followup"
+@attribute [Authorize]
+
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+@using ToolboxPortal.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject ThgCsvImportService CsvImportService
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject EmailService EmailService
+@inject ThgMailTemplateService TemplateService
+@inject ThgFollowUpService FollowUpService
+@inject ThgScrapingService ScrapingService
+@inject IJSRuntime JS
+
+<PageTitle>THG-Prämie Follow-up Tool</PageTitle>
+
+<h1 class="page-title">THG-Prämie Follow-up Tool</h1>
+
+<p class="page-subtitle">
+    Importiere E-Auto-Kunden, verwalte den Mailversand und prüfe später Registrierungen.
+</p>
+
+<div class="tool-tabs">
+    <button class="tool-tab @(activeTab == "dashboard" ? "active" : "")"
+            @onclick='() => SetActiveTab("dashboard")'>
+        Dashboard
+    </button>
+
+    <button class="tool-tab @(activeTab == "customers" ? "active" : "")"
+            @onclick='() => SetActiveTab("customers")'>
+        Kunden
+    </button>
+
+    <button class="tool-tab @(activeTab == "templates" ? "active" : "")"
+            @onclick='() => SetActiveTab("templates")'>
+        Mailtemplates
+    </button>
+
+    <button class="tool-tab @(activeTab == "settings" ? "active" : "")"
+            @onclick='() => SetActiveTab("settings")'>
+        Einstellungen
+    </button>
+</div>
+@if (activeTab == "dashboard")
+{
+    <div class="kpi-grid">
+
+        <div class="kpi-card">
+            <span>Gesamt</span>
+            <strong>@totalCustomers</strong>
+            <small>importierte Kunden</small>
+        </div>
+
+        <div class="kpi-card">
+            <span>Offen</span>
+            <strong>@openCustomers</strong>
+            <small>kontaktierbar, nicht registriert</small>
+        </div>
+
+        <div class="kpi-card">
+            <span>Registriert</span>
+            <strong>@registeredCustomers</strong>
+            <small>@conversionRate % Conversion</small>
+        </div>
+
+        <div class="kpi-card">
+            <span>Ohne E-Mail</span>
+            <strong>@noEmailCustomers</strong>
+            <small>nicht kontaktierbar</small>
+        </div>
+
+        <div class="kpi-card">
+            <span>Erstmails</span>
+            <strong>@initialMailsSent</strong>
+            <small>bereits versendet</small>
+        </div>
+
+        <div class="kpi-card">
+            <span>Letzte Automatik</span>
+            <strong>
+                @(lastAutomationRunDate == null
+                    ? "Nie"
+                    : lastAutomationRunDate.Value.ToLocalTime().ToString("dd.MM. HH:mm"))
+            </strong>
+            <small>letzter Hintergrundlauf</small>
+        </div>
+
+    </div>
+}
+@if (activeTab == "customers")
+{
+    <div class="tool-card">
+        <h3>CSV-Import</h3>
+
+        <p>
+            Lade die BEV-Zulassungsdatei hoch. Bestehende Kunden werden anhand der Fahrgestellnummer übersprungen.
+        </p>
+
+        <InputFile OnChange="ImportCsv" accept=".csv" />
+
+        @if (!string.IsNullOrWhiteSpace(importMessage))
+        {
+            <p class="import-message">@importMessage</p>
+        }
+    </div>
+
+    <div class="tool-card mt-4">
+        <div class="result-header">
+            <h3>Mailversand</h3>
+        </div>
+
+        <p>
+            Sendet die Erstmail an alle offenen Kunden mit gültiger E-Mail-Adresse.
+        </p>
+
+        <button class="btn btn-primary"
+                @onclick="SendInitialMails"
+                disabled="@isSendingMails">
+            @(isSendingMails ? "Versende..." : "Erstmail senden")
+        </button>
+
+        @if (!string.IsNullOrWhiteSpace(mailSendMessage))
+        {
+            <p class="import-message">@mailSendMessage</p>
+        }
+
+        
+    </div>
+
+    @if (customers.Any())
+    {
+        <div class="tool-card mt-4">
+            <div class="result-header">
+                <h3>Kunden</h3>
+                <span class="user-name">
+                    @filteredCustomers.Count von @customers.Count Einträgen
+                </span>
+            </div>
+
+            <div class="table-toolbar">
+                <input class="form-control"
+                       placeholder="Nach Name, Firma, E-Mail, Kennzeichen oder VIN suchen..."
+                       @bind="searchTerm"
+                       @bind:event="oninput" />
+
+                <select class="form-control status-filter"
+                        @bind="statusFilter">
+                    <option value="all">Alle Datensätze</option>
+                    <option value="open">Nur offene</option>
+                    <option value="done">Nur abgeschlossene</option>
+                    <option value="noemail">Ohne E-Mail</option>
+                </select>
+            </div>
+
+            @if (lastImportDate != null)
+            {
+                <p class="import-meta">
+                    Letzter Import: @lastImportDate.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                </p>
+            }
+
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Firma</th>
+                            <th>E-Mail</th>
+                            <th>Kennzeichen</th>
+                            <th>VIN</th>
+                            <th>EZ</th>
+                            <th>Erstmail</th>
+                            <th>Versendet</th>
+                            <th>Status</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var customer in filteredCustomers)
+                        {
+                            <tr>
+                                <td>@customer.FirstName @customer.LastName</td>
+                                <td>@customer.Company</td>
+                                <td>
+                                    @customer.Email
+                                    @if (!string.IsNullOrWhiteSpace(customer.EmailSource))
+                                    {
+                                        <small class="table-muted">(@customer.EmailSource)</small>
+                                    }
+                                </td>
+                                <td>@customer.LicensePlate</td>
+                                <td>@customer.Vin</td>
+                                <td>@customer.FirstRegistrationDate?.ToString("dd.MM.yyyy")</td>
+                                <td>
+                                    @if (customer.InitialMailSent)
+                                    {
+                                        <span class="status-pill success">Gesendet</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-pill neutral">Offen</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (customer.InitialMailSentAt != null)
+                                    {
+                                        @customer.InitialMailSentAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                    }
+                                </td>
+                                <td>
+                                    @if (customer.IsRegistered)
+                                    {
+                                        <span class="status-pill success">Registriert</span>
+                                    }
+                                    else if (string.IsNullOrWhiteSpace(customer.Email))
+                                    {
+                                        <span class="status-pill warning">Keine E-Mail</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-pill neutral">Offen</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="table-actions">
+                                        @if (!customer.IsRegistered && !string.IsNullOrWhiteSpace(customer.Email))
+                                        {
+                                            <button class="copy-btn"
+                                                    @onclick="() => SendInitialMailToCustomer(customer)"
+                                                    disabled="@isSendingMails">
+                                                Mail senden
+                                            </button>
+                                        }
+
+                                        <button class="copy-btn"
+                                                @onclick="() => ToggleHistory(customer.Id)">
+                                            Verlauf
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            @if (expandedCustomerId == customer.Id)
+                            {
+                                <tr class="history-row">
+                                    <td colspan="10">
+                                        <div class="history-panel">
+                                            @if (!currentMailLogs.Any())
+                                            {
+                                                <p class="table-muted">
+                                                    Keine Versandhistorie vorhanden.
+                                                </p>
+                                            }
+                                            else
+                                            {
+                                                @foreach (var log in currentMailLogs)
+                                                {
+                                                    <div class="mail-log-item">
+                                                        <div class="mail-log-header">
+                                                            <strong>@log.MailType</strong>
+                                                            <span>@log.SentAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                                                        </div>
+
+                                                        <div class="mail-log-status">
+                                                            @if (log.Success)
+                                                            {
+                                                                <span class="status-pill success">Erfolgreich</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="status-pill warning">Fehler</span>
+                                                            }
+                                                        </div>
+
+                                                        @if (!string.IsNullOrWhiteSpace(log.ErrorMessage))
+                                                        {
+                                                            <div class="mail-log-error">
+                                                                @log.ErrorMessage
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@if (activeTab == "templates")
+{
+    <div class="tool-card">
+        <div class="result-header">
+            <h3>Mailtemplates</h3>
+        </div>
+
+        @if (selectedTemplate != null)
+        {
+            <div class="table-toolbar">
+                <select class="form-control"
+                        @bind="selectedTemplateId"
+                        @bind:after="SelectTemplate">
+                    @foreach (var template in templates)
+                    {
+                        <option value="@template.Id">
+                            @template.Name
+                        </option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Betreff</label>
+
+                <input class="form-control"
+                       @bind="selectedTemplate.Subject" />
+            </div>
+
+            <div class="form-group">
+                <label>HTML-Inhalt</label>
+
+                <div class="editor-toolbar">
+                    <button type="button"
+                            class="copy-btn"
+                            @onclick="ToggleEditorMode">
+                        @(useVisualEditor ? "HTML-Modus" : "Visueller Editor")
+                    </button>
+                </div>
+
+                @if (useVisualEditor)
+{
+    <textarea @key="visualEditorKey"
+              id="template-editor"></textarea>
+}
+else
+{
+    <textarea @key="htmlEditorKey"
+              class="form-control"
+              rows="16"
+              @bind="selectedTemplate.HtmlBody"></textarea>
+}
+                </div>
+
+                <div class="tool-card mb-3">
+                    <strong>Verfügbare Variablen</strong>
+
+                    <div class="template-vars">
+                        <code>{{Vorname}}</code>
+                        <code>{{Nachname}}</code>
+                        <code>{{Firma}}</code>
+                        <code>{{Email}}</code>
+                        <code>{{Kennzeichen}}</code>
+                        <code>{{VIN}}</code>
+                        <code>{{Erstzulassung}}</code>
+                        <code>{{THGLink}}</code>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary"
+                        @onclick="SaveTemplate">
+                    Template speichern
+                </button>
+
+                <div class="testmail-box">
+                    <input class="form-control"
+                           placeholder="Testmail-Adresse"
+                           @bind="testEmail"
+                           @bind:event="oninput" />
+
+                    <button class="btn btn-primary"
+                            @onclick="SendTestEmail">
+                        Gewähltes Template senden
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(testMailMessage))
+                {
+                    <p class="import-message">@testMailMessage</p>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(templateMessage))
+                {
+                    <p class="import-message">@templateMessage</p>
+                }
+            }
+        else
+            {
+                <p class="table-muted">Keine Templates vorhanden.</p>
+            }
+        </div>
+    }
+
+    @if (activeTab == "settings")
+    {
+        <div class="tool-card">
+
+            <div class="result-header">
+                <h3>Follow-up Einstellungen</h3>
+            </div>
+
+            @if (followUpSettings != null)
+            {
+                <div class="form-group">
+                    <label class="remember-me">
+                        <InputCheckbox @bind-Value="followUpSettings.FollowUpsEnabled" />
+                        Follow-ups automatisch aktivieren
+                    </label>
+                </div>
+
+                <div class="settings-grid">
+
+                    <div class="form-group">
+                        <label>Follow-up 1 nach Tagen</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="followUpSettings.FollowUp1AfterDays" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Follow-up 2 nach Tagen</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="followUpSettings.FollowUp2AfterDays" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Follow-up 3 nach Tagen</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="followUpSettings.FollowUp3AfterDays" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Maximale Follow-ups</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="followUpSettings.MaxFollowUps" />
+                    </div>
+
+                </div>
+
+                <div class="form-group">
+                    <label>Benachrichtigungs-E-Mail bei Fehlern / Sicherheitsabfrage</label>
+                    <InputText class="form-control"
+                               @bind-Value="followUpSettings.NotificationEmail"
+                               placeholder="z. B. info@autohaus.de" />
+                </div>
+
+                <button class="btn btn-primary"
+                        @onclick="SaveFollowUpSettings">
+                    Einstellungen speichern
+                </button>
+                <hr />
+
+                <h4>Follow-up Lauf</h4>
+
+                <p class="table-muted">
+                    Prüft alle offenen Kunden und sendet fällige Follow-ups anhand der gespeicherten Regeln.
+                </p>
+
+                <button class="btn btn-primary"
+                        @onclick="RunFollowUps"
+                        disabled="@isRunningFollowUps">
+                    @(isRunningFollowUps ? "Prüfe..." : "Follow-ups jetzt prüfen")
+                </button>
+
+                @if (!string.IsNullOrWhiteSpace(followUpRunMessage))
+                {
+                    <p class="import-message">@followUpRunMessage</p>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(settingsMessage))
+                {
+                    <p class="import-message">@settingsMessage</p>
+                }
+                <hr />
+
+                <h4>Registrierungsprüfung</h4>
+
+                <p class="table-muted">
+                    Testet, ob die THG-Plattform erreichbar ist und keine Sicherheitsabfrage erscheint.
+                </p>
+
+                <button class="btn btn-primary"
+                        @onclick="RunScrapingHealthCheck"
+                        disabled="@isRunningScrapingCheck">
+                    @(isRunningScrapingCheck ? "Prüfe..." : "Scraping-Test starten")
+                </button>
+
+                @if (!string.IsNullOrWhiteSpace(scrapingCheckMessage))
+                {
+                    <p class="import-message">@scrapingCheckMessage</p>
+                }
+                <hr />
+
+                <h4>Referral-Liste auslesen</h4>
+
+                <p class="table-muted">
+                    Liest die Referral-Liste aus und zeigt, wie viele Einträge gefunden wurden.
+                </p>
+
+                <button class="btn btn-primary"
+                        @onclick="ReadReferralEntries"
+                        disabled="@isReadingReferralEntries">
+                    @(isReadingReferralEntries ? "Lese..." : "Referral-Liste auslesen")
+                </button>
+
+                @if (!string.IsNullOrWhiteSpace(referralReadMessage))
+                {
+                    <p class="import-message">@referralReadMessage</p>
+                }
+                <hr />
+
+                <h4>Registrierungen abgleichen</h4>
+
+                <p class="table-muted">
+                    Vergleicht die Referral-Liste mit den importierten Kunden anhand des Namens und markiert Treffer als registriert.
+                </p>
+
+                <button class="btn btn-primary"
+                        @onclick="CheckRegistrations"
+                        disabled="@isCheckingRegistrations">
+                    @(isCheckingRegistrations ? "Gleiche ab..." : "Registrierungen abgleichen")
+                </button>
+
+                @if (!string.IsNullOrWhiteSpace(registrationCheckMessage))
+                {
+                    <p class="import-message">@registrationCheckMessage</p>
+                }
+                <hr />
+
+                <h4>Automatisierung</h4>
+
+                <div class="settings-grid">
+
+                    <div class="form-group">
+                        <label class="remember-me">
+                            <InputCheckbox @bind-Value="followUpSettings.AutoRegistrationCheckEnabled" />
+                            Registrierungsprüfung automatisch ausführen
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Automatik alle X Stunden</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="followUpSettings.BackgroundRunEveryHours" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Max. Mails pro Lauf</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="followUpSettings.MaxMailsPerRun" />
+                    </div>
+
+                </div>
+            }
+
+        </div>
+    }
+
+
+
+@code {
+    private string? currentUserId;
+    private string importMessage = "";
+    private string searchTerm = "";
+    private string statusFilter = "all";
+    private string testEmail = "";
+    private string testMailMessage = "";
+    private bool isSendingMails;
+    private string mailSendMessage = "";
+    private int? expandedCustomerId;
+    private List<ThgMailTemplate> templates = new();
+    private ThgMailTemplate? selectedTemplate;
+    private int selectedTemplateId;
+    private string templateMessage = "";
+    private List<ThgMailLog> currentMailLogs = new();
+    private string activeTab = "dashboard";
+    private ThgFollowUpSettings? followUpSettings;
+    private string settingsMessage = "";
+    private List<ThgCustomer> customers = new();
+    private bool isRunningFollowUps;
+    private string followUpRunMessage = "";
+    private bool isRunningScrapingCheck;
+    private string scrapingCheckMessage = "";
+    private bool isReadingReferralEntries;
+    private string referralReadMessage = "";
+    private bool isCheckingRegistrations;
+    private string registrationCheckMessage = "";
+    private int totalCustomers => customers.Count;
+    private bool useVisualEditor = true;
+    private int visualEditorKey = 0;
+    private int htmlEditorKey = 0;
+    private bool shouldInitEditor;
+    private bool editorIsInitializing;
+
+    private int openCustomers =>
+        customers.Count(x => !x.IsRegistered && !string.IsNullOrWhiteSpace(x.Email));
+
+    private int registeredCustomers =>
+        customers.Count(x => x.IsRegistered);
+
+    private int noEmailCustomers =>
+        customers.Count(x => string.IsNullOrWhiteSpace(x.Email));
+
+    private int initialMailsSent =>
+        customers.Count(x => x.InitialMailSent);
+
+    private double conversionRate =>
+        totalCustomers == 0
+            ? 0
+            : Math.Round((double)registeredCustomers / totalCustomers * 100, 1);
+
+    private DateTime? lastAutomationRunDate =>
+        followUpSettings?.LastAutomationRunAt;
+
+    private DateTime? lastImportDate =>
+        customers.Any()
+            ? customers.Max(x => x.CreatedAt)
+            : null;
+
+    private List<ThgCustomer> filteredCustomers =>
+        customers
+            .Where(x =>
+                statusFilter == "all"
+                || statusFilter == "open" && !x.IsRegistered && !string.IsNullOrWhiteSpace(x.Email)
+                || statusFilter == "done" && x.IsRegistered
+                || statusFilter == "noemail" && string.IsNullOrWhiteSpace(x.Email))
+            .Where(x =>
+                string.IsNullOrWhiteSpace(searchTerm)
+                || $"{x.FirstName} {x.LastName} {x.Company} {x.Email} {x.LicensePlate} {x.Vin}"
+                    .Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await GetCurrentUser();
+
+        if (user == null)
+        {
+            return;
+        }
+
+        currentUserId = user.Id;
+
+        await LoadCustomers();
+        await LoadTemplates();
+        await LoadFollowUpSettings();
+    }
+
+    private async Task SendTestEmail()
+    {
+        if (string.IsNullOrWhiteSpace(testEmail))
+        {
+            testMailMessage = "Bitte eine Testmail-Adresse eingeben.";
+            return;
+        }
+
+        if (selectedTemplate == null)
+        {
+            testMailMessage = "Bitte ein Template auswählen.";
+            return;
+        }
+
+        var sampleCustomer = new ThgCustomer
+        {
+            FirstName = "Max",
+            LastName = "Mustermann",
+            Company = "Musterfirma GmbH",
+            Email = testEmail,
+            LicensePlate = "NES-THG 123",
+            Vin = "WVWZZZTEST1234567",
+            FirstRegistrationDate = DateTime.Today
+        };
+
+        try
+        {
+            var subject = TemplateService.RenderTemplate(
+                selectedTemplate.Subject,
+                sampleCustomer);
+
+            var body = TemplateService.RenderTemplate(
+                selectedTemplate.HtmlBody,
+                sampleCustomer);
+
+            await EmailService.SendEmailAsync(
+                testEmail,
+                subject,
+                body);
+
+            testMailMessage = $"Testmail mit Template „{selectedTemplate.Name}“ wurde an {testEmail} gesendet.";
+        }
+        catch (Exception ex)
+        {
+            testMailMessage = $"Fehler beim Versand: {ex.Message}";
+        }
+    }
+
+    private async Task ReadReferralEntries()
+    {
+        isReadingReferralEntries = true;
+
+        try
+        {
+            var entries = await ScrapingService.GetReferralEntriesAsync();
+
+            referralReadMessage = $"{entries.Count} Referral-Einträge gefunden.";
+
+            if (entries.Any())
+            {
+                var preview = string.Join(", ", entries.Take(5).Select(x => $"{x.Name} ({x.Status})"));
+
+                referralReadMessage += $" Vorschau: {preview}";
+            }
+        }
+        catch (Exception ex)
+        {
+            referralReadMessage = $"Fehler beim Auslesen: {ex.Message}";
+        }
+        finally
+        {
+            isReadingReferralEntries = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (editorIsInitializing)
+        {
+            return;
+        }
+
+        if (activeTab != "templates"
+            || !useVisualEditor
+            || selectedTemplate == null
+            || !shouldInitEditor)
+        {
+            return;
+        }
+
+        editorIsInitializing = true;
+        shouldInitEditor = false;
+
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "templateEditor.init",
+                "#template-editor",
+                selectedTemplate.HtmlBody);
+        }
+        catch (Exception ex)
+        {
+            templateMessage = $"Editor konnte nicht geladen werden: {ex.Message}";
+        }
+        finally
+        {
+            editorIsInitializing = false;
+        }
+    }
+
+    private async Task SetActiveTab(string tab)
+    {
+        if (activeTab == "templates" && useVisualEditor)
+        {
+            try
+            {
+                selectedTemplate!.HtmlBody =
+                    await JS.InvokeAsync<string>(
+                        "templateEditor.getContent",
+                        "#template-editor");
+
+                await JS.InvokeVoidAsync(
+                    "templateEditor.destroy",
+                    "#template-editor");
+            }
+            catch
+            {
+            }
+        }
+
+        activeTab = tab;
+
+        if (activeTab == "templates" && useVisualEditor && selectedTemplate != null)
+        {
+            visualEditorKey++;
+            shouldInitEditor = true;
+        }
+    }
+
+    private async Task ToggleEditorMode()
+    {
+        if (selectedTemplate == null)
+        {
+            return;
+        }
+
+        if (useVisualEditor)
+        {
+            selectedTemplate.HtmlBody =
+                await JS.InvokeAsync<string>(
+                    "templateEditor.getContent",
+                    "#template-editor");
+
+            await JS.InvokeVoidAsync(
+                "templateEditor.destroy",
+                "#template-editor");
+
+            useVisualEditor = false;
+            htmlEditorKey++;
+        }
+        else
+        {
+            useVisualEditor = true;
+            visualEditorKey++;
+            shouldInitEditor = true;
+        }
+    }
+
+    private async Task CheckRegistrations()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        isCheckingRegistrations = true;
+
+        try
+        {
+            var entries = await ScrapingService.GetReferralEntriesAsync();
+
+            var referralNames = entries
+                .Select(x => ScrapingService.NormalizeName(x.Name))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToHashSet();
+
+            var matched = 0;
+
+            foreach (var customer in customers)
+            {
+                var customerName = ScrapingService.NormalizeName(
+                    $"{customer.FirstName} {customer.LastName}");
+
+                if (referralNames.Contains(customerName))
+                {
+                    customer.IsRegistered = true;
+                    matched++;
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            registrationCheckMessage =
+                $"{matched} Kunden als registriert markiert. {entries.Count} Referral-Einträge geprüft.";
+
+            await LoadCustomers();
+        }
+        catch (Exception ex)
+        {
+            registrationCheckMessage = $"Fehler bei der Registrierungsprüfung: {ex.Message}";
+        }
+        finally
+        {
+            isCheckingRegistrations = false;
+        }
+    }
+
+    private async Task ImportCsv(InputFileChangeEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        var file = e.File;
+
+        await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+
+        var importedCustomers = await CsvImportService.ParseAsync(stream, currentUserId);
+
+        var imported = 0;
+        var skipped = 0;
+
+        foreach (var customer in importedCustomers)
+        {
+            var exists = await DbContext.ThgCustomers
+                .AnyAsync(x => x.UserId == currentUserId && x.Vin == customer.Vin);
+
+            if (exists)
+            {
+                skipped++;
+                continue;
+            }
+
+            DbContext.ThgCustomers.Add(customer);
+            imported++;
+        }
+
+        await DbContext.SaveChangesAsync();
+
+        importMessage = $"{imported} Kunden importiert, {skipped} Dubletten übersprungen.";
+
+        await LoadCustomers();
+    }
+
+    private async Task RunScrapingHealthCheck()
+    {
+        isRunningScrapingCheck = true;
+
+        try
+        {
+            var result = await ScrapingService.RunHealthCheckAsync();
+
+            scrapingCheckMessage = result.Success
+                ? $"Erfolgreich: {result.Message}"
+                : $"Fehler: {result.Message}";
+        }
+        catch (Exception ex)
+        {
+            scrapingCheckMessage = $"Fehler beim Scraping-Test: {ex.Message}";
+        }
+        finally
+        {
+            isRunningScrapingCheck = false;
+        }
+    }
+    
+    private async Task RunFollowUps()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        isRunningFollowUps = true;
+
+        try
+        {
+            var result = await FollowUpService.RunFollowUpsAsync(currentUserId);
+
+            followUpRunMessage = $"{result.sent} Follow-ups versendet, {result.failed} Fehler.";
+
+            await LoadCustomers();
+        }
+        finally
+        {
+            isRunningFollowUps = false;
+        }
+    }
+
+    private async Task ToggleHistory(int customerId)
+    {
+        if (expandedCustomerId == customerId)
+        {
+            expandedCustomerId = null;
+            currentMailLogs = new();
+            return;
+        }
+
+        expandedCustomerId = customerId;
+
+        currentMailLogs = await DbContext.ThgMailLogs
+            .Where(x => x.ThgCustomerId == customerId)
+            .OrderByDescending(x => x.SentAt)
+            .ToListAsync();
+    }
+
+    private async Task LoadFollowUpSettings()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        followUpSettings = await DbContext.ThgFollowUpSettings
+            .FirstOrDefaultAsync(x => x.UserId == currentUserId);
+
+        if (followUpSettings == null)
+        {
+            followUpSettings = new ThgFollowUpSettings
+            {
+                UserId = currentUserId,
+                FollowUpsEnabled = true,
+                FollowUp1AfterDays = 3,
+                FollowUp2AfterDays = 7,
+                FollowUp3AfterDays = 14,
+                MaxFollowUps = 3,
+                NotificationEmail = "",
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            DbContext.ThgFollowUpSettings.Add(followUpSettings);
+
+            await DbContext.SaveChangesAsync();
+        }
+    }
+
+    private async Task SaveFollowUpSettings()
+    {
+        if (followUpSettings == null)
+        {
+            return;
+        }
+
+        followUpSettings.UpdatedAt = DateTime.UtcNow;
+
+        await DbContext.SaveChangesAsync();
+
+        settingsMessage = "Einstellungen gespeichert.";
+    }
+
+private async Task LoadCustomers()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        customers = await DbContext.ThgCustomers
+            .Where(x => x.UserId == currentUserId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+    }
+
+    private async Task<ApplicationUser?> GetCurrentUser()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        return await UserManager.GetUserAsync(authState.User);
+    }
+
+    private async Task SaveTemplate()
+    {
+        if (useVisualEditor)
+        {
+            selectedTemplate!.HtmlBody =
+                await JS.InvokeAsync<string>(
+                    "templateEditor.getContent",
+                    "#template-editor");
+        }
+        if (selectedTemplate == null)
+        {
+            return;
+        }
+
+        selectedTemplate.UpdatedAt = DateTime.UtcNow;
+
+        await DbContext.SaveChangesAsync();
+
+        templateMessage = "Template gespeichert.";
+    }
+
+    private async Task LoadTemplates()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        await TemplateService.EnsureDefaultTemplatesAsync(currentUserId);
+
+        templates = await DbContext.ThgMailTemplates
+            .Where(x => x.UserId == currentUserId)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+
+        selectedTemplate = templates.FirstOrDefault();
+        selectedTemplateId = selectedTemplate?.Id ?? 0;
+        
+    }
+
+    private async Task SelectTemplate()
+    {
+        if (useVisualEditor)
+        {
+            await JS.InvokeVoidAsync(
+                "templateEditor.destroy",
+                "#template-editor");
+        }
+
+        selectedTemplate = templates.FirstOrDefault(x => x.Id == selectedTemplateId);
+        templateMessage = "";
+
+        visualEditorKey++;
+        htmlEditorKey++;
+        shouldInitEditor = useVisualEditor;
+    }
+
+    private async Task SendInitialMailToCustomer(ThgCustomer customer)
+    {
+        if (string.IsNullOrWhiteSpace(customer.Email))
+        {
+            mailSendMessage = "Dieser Kunde hat keine E-Mail-Adresse.";
+            return;
+        }
+
+        if (customer.IsRegistered)
+        {
+            mailSendMessage = "Dieser Kunde ist bereits als registriert markiert.";
+            return;
+        }
+
+        isSendingMails = true;
+
+        try
+        {
+            var template = await TemplateService.GetTemplateAsync(currentUserId!, "Initial");
+
+            var subject = template == null
+                ? "Jetzt THG-Prämie für Ihr E-Auto sichern"
+                : TemplateService.RenderTemplate(template.Subject, customer);
+
+            var body = template == null
+                ? $"<h2>Hallo {customer.FirstName},</h2><p>Sichern Sie sich jetzt Ihre THG-Prämie.</p>"
+                : TemplateService.RenderTemplate(template.HtmlBody, customer);
+
+            await EmailService.SendEmailAsync(customer.Email, subject, body);
+
+            customer.InitialMailSent = true;
+            customer.InitialMailSentAt = DateTime.UtcNow;
+            customer.LastMailSentAt = DateTime.UtcNow;
+
+            DbContext.ThgMailLogs.Add(new ThgMailLog
+            {
+                ThgCustomerId = customer.Id,
+                RecipientEmail = customer.Email,
+                MailType = "InitialManual",
+                Subject = subject,
+                SentAt = DateTime.UtcNow,
+                Success = true
+            });
+
+            await DbContext.SaveChangesAsync();
+
+            mailSendMessage = $"Mail an {customer.Email} wurde versendet.";
+
+            await LoadCustomers();
+        }
+        catch (Exception ex)
+        {
+            DbContext.ThgMailLogs.Add(new ThgMailLog
+            {
+                ThgCustomerId = customer.Id,
+                RecipientEmail = customer.Email,
+                MailType = "InitialManual",
+                Subject = "THG Erstmail",
+                SentAt = DateTime.UtcNow,
+                Success = false,
+                ErrorMessage = ex.Message
+            });
+
+            await DbContext.SaveChangesAsync();
+
+            mailSendMessage = $"Fehler beim Versand an {customer.Email}: {ex.Message}";
+        }
+        finally
+        {
+            isSendingMails = false;
+        }
+    }
+
+    private async Task SendInitialMails()
+    {
+        isSendingMails = true;
+
+        try
+        {
+            var template = await TemplateService.GetTemplateAsync(currentUserId!, "Initial");
+
+            var openCustomers = customers
+                .Where(x =>
+                    !x.IsRegistered
+                    && !x.InitialMailSent
+                    && !string.IsNullOrWhiteSpace(x.Email))
+                .ToList();
+
+            var sent = 0;
+            var failed = 0;
+
+            foreach (var customer in openCustomers)
+            {
+                try
+                {
+                    var subject = template == null
+                        ? "Jetzt THG-Prämie für Ihr E-Auto sichern"
+                        : TemplateService.RenderTemplate(template.Subject, customer);
+
+                    var body = template == null
+                        ? $"<h2>Hallo {customer.FirstName},</h2><p>Sichern Sie sich jetzt Ihre THG-Prämie.</p>"
+                        : TemplateService.RenderTemplate(template.HtmlBody, customer);
+
+                    await EmailService.SendEmailAsync(customer.Email, subject, body);
+
+                    customer.InitialMailSent = true;
+                    customer.InitialMailSentAt = DateTime.UtcNow;
+                    customer.LastMailSentAt = DateTime.UtcNow;
+
+                    DbContext.ThgMailLogs.Add(new ThgMailLog
+                    {
+                        ThgCustomerId = customer.Id,
+                        RecipientEmail = customer.Email,
+                        MailType = "Initial",
+                        Subject = subject,
+                        SentAt = DateTime.UtcNow,
+                        Success = true
+                    });
+
+                    sent++;
+                }
+                catch (Exception ex)
+                {
+                    DbContext.ThgMailLogs.Add(new ThgMailLog
+                    {
+                        ThgCustomerId = customer.Id,
+                        RecipientEmail = customer.Email,
+                        MailType = "Initial",
+                        Subject = "THG Erstmail",
+                        SentAt = DateTime.UtcNow,
+                        Success = false,
+                        ErrorMessage = ex.Message
+                    });
+
+                    failed++;
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            mailSendMessage = $"{sent} Erstmails versendet, {failed} Fehler.";
+
+            await LoadCustomers();
+        }
+        finally
+        {
+            isSendingMails = false;
+        }
+    }
+}

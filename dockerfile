@@ -7,7 +7,7 @@ RUN dotnet restore
 COPY . ./
 RUN dotnet publish -c Release -r linux-x64 --self-contained true -o /app/publish /p:UseAppHost=true
 
-FROM mcr.microsoft.com/playwright:v1.57.0-noble AS final
+FROM mcr.microsoft.com/playwright:v1.59.0-noble AS final
 WORKDIR /app
 
 ENV ASPNETCORE_URLS=http://+:8080

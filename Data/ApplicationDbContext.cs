@@ -10,6 +10,8 @@ namespace ToolboxPortal.Data
     {
         public DbSet<AiGeneration> AiGenerations { get; set; }
 
+        public DbSet<UserModuleAccess> UserModuleAccesses { get; set; }
+
         public DbSet<AiChatSession> AiChatSessions { get; set; }
 
         public DbSet<AiChatMessage> AiChatMessages { get; set; }

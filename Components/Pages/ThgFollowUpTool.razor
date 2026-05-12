@@ -19,6 +19,8 @@
 @inject ThgScrapingService ScrapingService
 @inject IJSRuntime JS
 @inject ThgInboxImportService InboxImportService
+@inject ModuleAccessService ModuleAccessService
+@inject NavigationManager Navigation
 
 <PageTitle>THG-Prämie Follow-up Tool</PageTitle>
 
@@ -803,6 +805,16 @@ else
 
         if (user == null)
         {
+            return;
+        }
+
+        var hasAccess = await ModuleAccessService.HasAccessAsync(
+            user.Id,
+            "thg-followup");
+
+        if (!hasAccess)
+        {
+            Navigation.NavigateTo("/");
             return;
         }
 

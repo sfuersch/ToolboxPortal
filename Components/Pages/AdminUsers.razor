@@ -1,0 +1,140 @@
+﻿@page "/admin/users"
+@attribute [Authorize(Roles = "Admin")]
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject UserManager<ApplicationUser> UserManager
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Benutzerverwaltung</PageTitle>
+
+<h1 class="page-title">Benutzerverwaltung</h1>
+
+@if (!string.IsNullOrWhiteSpace(saveMessage))
+{
+    <p class="import-message">@saveMessage</p>
+}
+
+@if (!users.Any())
+{
+    <p>Keine Benutzer vorhanden.</p>
+}
+else
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>E-Mail</th>
+
+                @foreach (var module in modules)
+                {
+                    <th>@module.Name</th>
+                }
+
+                <th>Rolle</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.Email</td>
+
+                    @foreach (var module in modules)
+                    {
+                        <td>
+                            <input type="checkbox"
+                                   checked="@HasModule(user.Id, module.Key)"
+                                   @onchange="@(e => ToggleModule(user.Id, module.Key, e.Value is bool value && value))" />
+                        </td>
+                    }
+
+                    <td>
+                        @if (adminUserIds.Contains(user.Id))
+                        {
+                            <span class="status-pill success">Admin</span>
+                        }
+                        else
+                        {
+                            <span class="status-pill neutral">User</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private readonly List<(string Key, string Name)> modules = new()
+    {
+        ("thg-followup", "THG Follow-up Tool"),
+        ("ai-tool", "KI Tool")
+    };
+
+    private string? saveMessage;
+    private List<ApplicationUser> users = new();
+    private HashSet<string> adminUserIds = new();
+    private List<UserModuleAccess> accesses = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        users = await UserManager.Users
+            .OrderBy(x => x.Email)
+            .ToListAsync();
+
+        accesses = await DbContext.UserModuleAccesses
+            .ToListAsync();
+
+        foreach (var user in users)
+        {
+            if (await UserManager.IsInRoleAsync(user, "Admin"))
+            {
+                adminUserIds.Add(user.Id);
+            }
+        }
+    }
+
+    private bool HasModule(string userId, string moduleKey)
+    {
+        return accesses.Any(x =>
+            x.UserId == userId
+            && x.ModuleKey == moduleKey
+            && x.IsEnabled);
+    }
+
+    private async Task ToggleModule(
+        string userId,
+        string moduleKey,
+        bool enabled)
+    {
+        var existing = accesses.FirstOrDefault(x =>
+            x.UserId == userId
+            && x.ModuleKey == moduleKey);
+
+        if (existing == null)
+        {
+            existing = new UserModuleAccess
+            {
+                UserId = userId,
+                ModuleKey = moduleKey,
+                IsEnabled = enabled
+            };
+
+            DbContext.UserModuleAccesses.Add(existing);
+            accesses.Add(existing);
+        }
+        else
+        {
+            existing.IsEnabled = enabled;
+        }
+
+        await DbContext.SaveChangesAsync();
+
+        saveMessage = "Änderung gespeichert.";
+    }
+}

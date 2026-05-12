@@ -1,62 +1,86 @@
 ﻿@page "/dashboard"
 @attribute [Authorize]
 
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using ToolboxPortal.Data
+@using ToolboxPortal.Services
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject ModuleAccessService ModuleAccessService
+
 <PageTitle>Dashboard</PageTitle>
 
 <h1 class="page-title">Dashboard</h1>
 
 <p class="page-subtitle">
-    Wähle ein Tool aus oder erstelle später neue Module für dein Portal.
+    Wähle ein freigegebenes Tool aus.
 </p>
 
 <div class="tool-grid">
 
-    <div class="tool-card">
-        <div class="tool-icon">🤖</div>
+    @if (canAccessAi)
+    {
+        <div class="tool-card">
+            <div class="tool-icon">🤖</div>
 
-        <h3>KI Tools</h3>
+            <h3>KI Tools</h3>
 
-        <p>Texte, Prompts und AI-Funktionen</p>
+            <p>Texte, Prompts und AI-Funktionen</p>
 
-        <a class="btn btn-primary" href="/tools/ai">
-            Öffnen
-        </a>
-    </div>
+            <a class="btn btn-primary" href="/tools/ai">
+                Öffnen
+            </a>
+        </div>
+    }
 
-    <div class="tool-card">
-        <div class="tool-icon">⚡</div>
+    @if (canAccessThg)
+    {
+        <div class="tool-card">
+            <div class="tool-icon">⚡</div>
 
-        <h3>THG-Prämie Follow-up</h3>
+            <h3>THG-Prämie Follow-up</h3>
 
-        <p>Kundenimport, Mailversand und Registrierungsprüfung.</p>
+            <p>Kundenimport, Mailversand und Registrierungsprüfung.</p>
 
-        <a class="btn btn-primary" href="/tools/thg-followup">
-            Öffnen
-        </a>
-    </div>
+            <a class="btn btn-primary" href="/tools/thg-followup">
+                Öffnen
+            </a>
+        </div>
+    }
 
-    <div class="tool-card">
-        <div class="tool-icon">📊</div>
+    @if (!canAccessAi && !canAccessThg)
+    {
+        <div class="tool-card">
+            <div class="tool-icon">🔒</div>
 
-        <h3>Datenanalyse</h3>
+            <h3>Keine Tools freigegeben</h3>
 
-        <p>CSV-, Excel- und Statistiktools</p>
-
-        <a class="btn btn-primary" href="/tools/data">
-            Öffnen
-        </a>
-    </div>
-
-    <div class="tool-card">
-        <div class="tool-icon">🚗</div>
-
-        <h3>Fahrzeugtools</h3>
-
-        <p>DAT, mobile.de, CXO und Fahrzeugdaten</p>
-
-        <a class="btn btn-primary" href="/tools/vehicles">
-            Öffnen
-        </a>
-    </div>
+            <p>Für deinen Benutzer wurden noch keine Module aktiviert.</p>
+        </div>
+    }
 
 </div>
+
+@code {
+    private bool canAccessAi;
+    private bool canAccessThg;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var userId = UserManager.GetUserId(authState.User);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        var accessList = await ModuleAccessService.GetAccessesForUserAsync(userId);
+
+        canAccessAi = accessList.Contains("ai-tool");
+        canAccessThg = accessList.Contains("thg-followup");
+    }
+}

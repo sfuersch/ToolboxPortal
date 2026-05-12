@@ -1,5 +1,12 @@
 ﻿@inherits LayoutComponentBase
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using ToolboxPortal.Data
+@using ToolboxPortal.Services
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject ModuleAccessService ModuleAccessService
 
 <div class="portal-shell">
     <aside class="portal-sidebar">
@@ -23,27 +30,41 @@
                         </NavLink>
                     </div>
 
-                    <div class="nav-section">
-                        <div class="nav-section-title">
-                            Tools
+                    @if (canAccessAi || canAccessThg)
+                    {
+                        <div class="nav-section">
+                            <div class="nav-section-title">
+                                Tools
+                            </div>
+
+                            @if (canAccessAi)
+                            {
+                                <NavLink href="/tools/ai">
+                                    KI Tools
+                                </NavLink>
+                            }
+
+                            @if (canAccessThg)
+                            {
+                                <NavLink href="/tools/thg-followup">
+                                    THG-Prämie Follow-up
+                                </NavLink>
+                            }
                         </div>
+                    }
 
-                        <NavLink href="/tools/ai">
-                            KI Tools
-                        </NavLink>
+                    @if (isAdmin)
+                    {
+                        <div class="nav-section">
+                            <div class="nav-section-title">
+                                Administration
+                            </div>
 
-                        <NavLink href="/tools/thg-followup">
-                            THG-Prämie Follow-up
-                        </NavLink>
-
-                        <NavLink href="/tools/data">
-                            Datenanalyse
-                        </NavLink>
-
-                        <NavLink href="/tools/vehicles">
-                            Fahrzeugtools
-                        </NavLink>
-                    </div>
+                            <NavLink href="/admin/users">
+                                Benutzerverwaltung
+                            </NavLink>
+                        </div>
+                    }
 
                     <div class="nav-section">
                         <div class="nav-section-title">
@@ -63,10 +84,6 @@
 
                         <NavLink href="/Account/Login">
                             Login
-                        </NavLink>
-
-                        <NavLink href="/Account/Register">
-                            Registrieren
                         </NavLink>
 
                     </div>
@@ -120,10 +137,6 @@
                             Login
                         </a>
 
-                        <a href="/Account/Register">
-                            Register
-                        </a>
-
                     </div>
 
                 </NotAuthorized>
@@ -137,3 +150,31 @@
         </section>
     </main>
 </div>
+
+@code {
+    private bool canAccessAi;
+    private bool canAccessThg;
+    private bool isAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            return;
+        }
+
+        isAdmin = await UserManager.IsInRoleAsync(user, "Admin");
+
+        canAccessAi = await ModuleAccessService.HasAccessAsync(
+            user.Id,
+            "ai-tool");
+
+        canAccessThg = await ModuleAccessService.HasAccessAsync(
+            user.Id,
+            "thg-followup");
+    }
+}

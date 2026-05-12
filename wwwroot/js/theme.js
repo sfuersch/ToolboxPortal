@@ -14,3 +14,31 @@ window.loadTheme = function () {
 window.copyToClipboard = async function (text) {
     await navigator.clipboard.writeText(text);
 };
+window.toggleSidebar = function () {
+    const shell = document.getElementById("portalShell");
+
+    if (!shell) {
+        return;
+    }
+
+    shell.classList.toggle("sidebar-collapsed");
+
+    localStorage.setItem(
+        "sidebar-collapsed",
+        shell.classList.contains("sidebar-collapsed")
+            ? "1"
+            : "0"
+    );
+};
+
+window.loadSidebarState = function () {
+    const shell = document.getElementById("portalShell");
+
+    if (!shell) {
+        return;
+    }
+
+    if (localStorage.getItem("sidebar-collapsed") === "1") {
+        shell.classList.add("sidebar-collapsed");
+    }
+};

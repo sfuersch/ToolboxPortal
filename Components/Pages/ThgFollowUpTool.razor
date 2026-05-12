@@ -801,15 +801,17 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var user = await GetCurrentUser();
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
 
-        if (user == null)
+        var userId = UserManager.GetUserId(authState.User);
+
+        if (string.IsNullOrWhiteSpace(userId))
         {
             return;
         }
 
         var hasAccess = await ModuleAccessService.HasAccessAsync(
-            user.Id,
+            userId,
             "thg-followup");
 
         if (!hasAccess)
@@ -818,7 +820,7 @@ else
             return;
         }
 
-        currentUserId = user.Id;
+        currentUserId = userId;
 
         await LoadCustomers();
         await LoadTemplates();
@@ -1288,12 +1290,7 @@ private async Task LoadCustomers()
             .ToListAsync();
     }
 
-    private async Task<ApplicationUser?> GetCurrentUser()
-    {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-
-        return await UserManager.GetUserAsync(authState.User);
-    }
+   
 
     private async Task SaveTemplate()
     {

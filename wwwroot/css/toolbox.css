@@ -933,3 +933,43 @@ a {
     .kpi-card small {
         color: var(--text-muted);
     }
+.sidebar-toggle {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 1.4rem;
+    padding: 0.75rem;
+    cursor: pointer;
+    text-align: left;
+}
+
+.portal-shell.sidebar-collapsed .portal-sidebar {
+    width: 72px;
+}
+
+.portal-shell.sidebar-collapsed .portal-brand,
+.portal-shell.sidebar-collapsed .nav-section-title,
+.portal-shell.sidebar-collapsed .portal-nav a {
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.portal-shell.sidebar-collapsed .portal-brand,
+.portal-shell.sidebar-collapsed .nav-section-title {
+    display: none;
+}
+
+.portal-shell.sidebar-collapsed .portal-nav a {
+    font-size: 0;
+    justify-content: center;
+    color: transparent;
+}
+
+.portal-shell.sidebar-collapsed .portal-nav {
+    display: none;
+}
+
+.portal-shell.sidebar-collapsed .portal-main {
+    margin-left: 72px;
+}

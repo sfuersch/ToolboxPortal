@@ -8,12 +8,14 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject ModuleAccessService ModuleAccessService
 
-<div class="portal-shell">
+<div class="portal-shell" id="portalShell">
     <aside class="portal-sidebar">
         <div class="portal-brand">
             Toolbox Portal
         </div>
-
+        <button class="sidebar-toggle" type="button" onclick="toggleSidebar()">
+            ☰
+        </button>
         <nav class="portal-nav">
 
             <AuthorizeView>
@@ -149,6 +151,9 @@
             @Body
         </section>
     </main>
+    <script>
+            window.loadSidebarState && window.loadSidebarState();
+    </script>
 </div>
 
 @code {

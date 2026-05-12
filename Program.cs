@@ -7,10 +7,14 @@ using ToolboxPortal.Components.Account;
 using ToolboxPortal.Data;
 using ToolboxPortal.Services;
 using System.Text;
+using Microsoft.AspNetCore.DataProtection;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/keys"));
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -81,7 +85,7 @@ app.UseForwardedHeaders();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    dbContext.Database.Migrate();
+    
 }
 
 if (app.Environment.IsDevelopment())

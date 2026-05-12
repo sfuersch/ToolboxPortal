@@ -9,6 +9,12 @@ public class ThgFollowUpSettings
     [Required]
     public string UserId { get; set; } = "";
 
+    public TimeSpan MailSendWindowStart { get; set; } = new(8, 0, 0);
+
+    public TimeSpan MailSendWindowEnd { get; set; } = new(18, 0, 0);
+
+    public bool AutomationPaused { get; set; }
+
     public bool FollowUpsEnabled { get; set; } = true;
 
     public int FollowUp1AfterDays { get; set; } = 3;

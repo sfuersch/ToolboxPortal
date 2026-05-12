@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ToolboxPortal.Data;
@@ -11,9 +12,11 @@ using ToolboxPortal.Data;
 namespace ToolboxPortal.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260512111713_AddThgAutomationPaused")]
+    partial class AddThgAutomationPaused
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -417,9 +420,6 @@ namespace ToolboxPortal.Migrations
                     b.Property<bool>("AutoRegistrationCheckEnabled")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("AutomationPaused")
-                        .HasColumnType("boolean");
-
                     b.Property<int>("BackgroundRunEveryHours")
                         .HasColumnType("integer");
 
@@ -437,12 +437,6 @@ namespace ToolboxPortal.Migrations
 
                     b.Property<DateTime?>("LastAutomationRunAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<TimeSpan>("MailSendWindowEnd")
-                        .HasColumnType("interval");
-
-                    b.Property<TimeSpan>("MailSendWindowStart")
-                        .HasColumnType("interval");
 
                     b.Property<int>("MaxFollowUps")
                         .HasColumnType("integer");

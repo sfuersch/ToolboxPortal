@@ -36,6 +36,18 @@ public class ThgInboxImportService
             return;
         }
 
+        var followUpSettings = await db.ThgFollowUpSettings
+    .FirstOrDefaultAsync(x => x.UserId == settings.UserId);
+
+        if (followUpSettings?.AutomationPaused == true)
+        {
+            _logger.LogInformation(
+                "THG Postfachimport für User {UserId} ist pausiert.",
+                settings.UserId);
+
+            return;
+        }
+
         try
         {
             await CheckInboxInternalAsync(db, csvImportService, settings);

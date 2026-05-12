@@ -10,6 +10,8 @@ public class ThgFollowUpService
     private readonly EmailService _emailService;
     private readonly ThgMailTemplateService _templateService;
 
+    public bool AutomationPaused { get; set; }
+
     public ThgFollowUpService(
         ApplicationDbContext dbContext,
         EmailService emailService,
@@ -27,7 +29,15 @@ public class ThgFollowUpService
         var settings = await _dbContext.ThgFollowUpSettings
             .FirstOrDefaultAsync(x => x.UserId == userId);
 
-        if (settings == null || !settings.FollowUpsEnabled)
+        if (settings == null || settings.AutomationPaused)
+        {
+            return (0, 0);
+        }
+
+        var localNow = DateTime.Now.TimeOfDay;
+
+        if (localNow < settings.MailSendWindowStart
+            || localNow > settings.MailSendWindowEnd)
         {
             return (0, 0);
         }

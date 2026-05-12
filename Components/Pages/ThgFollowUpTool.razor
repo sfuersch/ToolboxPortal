@@ -84,6 +84,12 @@
         </div>
 
         <div class="kpi-card">
+            <span>Warten auf Erstmail</span>
+            <strong>@waitingForInitialMail</strong>
+            <small>neu importierte Kunden</small>
+        </div>
+
+        <div class="kpi-card">
             <span>Letzte Automatik</span>
             <strong>
                 @(lastAutomationRunDate == null
@@ -118,13 +124,13 @@
         </div>
 
         <p>
-            Sendet die Erstmail an alle offenen Kunden mit gültiger E-Mail-Adresse.
+            Versendet Erstmails an neue offene Kunden mit gültiger E-Mail-Adresse.
         </p>
 
         <button class="btn btn-primary"
                 @onclick="SendInitialMails"
                 disabled="@isSendingMails">
-            @(isSendingMails ? "Versende..." : "Erstmail senden")
+            @(isSendingMails ? "Versende..." : "Offene Erstmails senden")
         </button>
 
         @if (!string.IsNullOrWhiteSpace(mailSendMessage))
@@ -406,68 +412,86 @@ else
         </div>
     }
 
-    @if (activeTab == "settings")
-    {
-        <div class="tool-card">
 
-            <div class="result-header">
-                <h3>Follow-up Einstellungen</h3>
-            </div>
+@if (activeTab == "settings")
+{
+    <div class="tool-card">
 
-            @if (followUpSettings != null)
-            {
-                <div class="form-group">
-                    <label class="remember-me">
-                        <InputCheckbox @bind-Value="followUpSettings.FollowUpsEnabled" />
-                        Follow-ups automatisch aktivieren
-                    </label>
-                </div>
+        <div class="result-header">
+            <h3>Follow-up Einstellungen</h3>
+        </div>
 
-                <div class="settings-grid">
+        @if (followUpSettings != null)
+        {
+            <div class="tool-card mb-4">
+                <h4>Wartungsmodus</h4>
 
-                    <div class="form-group">
-                        <label>Follow-up 1 nach Tagen</label>
-                        <InputNumber class="form-control"
-                                     @bind-Value="followUpSettings.FollowUp1AfterDays" />
-                    </div>
+                <label class="remember-me">
+                    <InputCheckbox @bind-Value="followUpSettings.AutomationPaused" />
+                    Automatik pausieren
+                </label>
 
-                    <div class="form-group">
-                        <label>Follow-up 2 nach Tagen</label>
-                        <InputNumber class="form-control"
-                                     @bind-Value="followUpSettings.FollowUp2AfterDays" />
-                    </div>
-
-                    <div class="form-group">
-                        <label>Follow-up 3 nach Tagen</label>
-                        <InputNumber class="form-control"
-                                     @bind-Value="followUpSettings.FollowUp3AfterDays" />
-                    </div>
-
-                    <div class="form-group">
-                        <label>Maximale Follow-ups</label>
-                        <InputNumber class="form-control"
-                                     @bind-Value="followUpSettings.MaxFollowUps" />
-                    </div>
-
-                </div>
-
-                <div class="form-group">
-                    <label>Benachrichtigungs-E-Mail bei Fehlern / Sicherheitsabfrage</label>
-                    <InputText class="form-control"
-                               @bind-Value="followUpSettings.NotificationEmail"
-                               placeholder="z. B. info@autohaus.de" />
-                </div>
+                <p class="table-muted">
+                    Wenn aktiv, werden Postfach-Import, Registrierungsprüfung, Erstmailversand und Follow-ups nicht automatisch ausgeführt.
+                </p>
 
                 <button class="btn btn-primary"
                         @onclick="SaveFollowUpSettings">
-                    Einstellungen speichern
+                    Wartungsmodus speichern
                 </button>
-                <hr />
+            </div>
 
-                <h4>Follow-up Lauf</h4>
+            <h4>Follow-up Regeln</h4>
+
+           
+
+            <div class="settings-grid">
+                <div class="form-group">
+                    <label>Follow-up 1 nach Tagen</label>
+                    <InputNumber class="form-control"
+                                 @bind-Value="followUpSettings.FollowUp1AfterDays" />
+                </div>
+
+                <div class="form-group">
+                    <label>Follow-up 2 nach Tagen</label>
+                    <InputNumber class="form-control"
+                                 @bind-Value="followUpSettings.FollowUp2AfterDays" />
+                </div>
+
+                <div class="form-group">
+                    <label>Follow-up 3 nach Tagen</label>
+                    <InputNumber class="form-control"
+                                 @bind-Value="followUpSettings.FollowUp3AfterDays" />
+                </div>
+
+                <div class="form-group">
+                    <label>Maximale Follow-ups</label>
+                    <InputNumber class="form-control"
+                                 @bind-Value="followUpSettings.MaxFollowUps" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Benachrichtigungs-E-Mail bei Fehlern / Sicherheitsabfrage</label>
+                <InputText class="form-control"
+                           @bind-Value="followUpSettings.NotificationEmail"
+                           placeholder="z. B. info@autohaus.de" />
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="SaveFollowUpSettings">
+                Follow-up Regeln speichern
+            </button>
+
+            <hr />
+
+            <h4>Manuelle Aktionen</h4>
+
+            <div class="tool-card mb-3">
+                <h5>Follow-up Lauf</h5>
 
                 <p class="table-muted">
-                    Prüft alle offenen Kunden und sendet fällige Follow-ups anhand der gespeicherten Regeln.
+                    Prüft alle offenen Kunden und sendet fällige Erstmails oder Follow-ups anhand der gespeicherten Regeln.
                 </p>
 
                 <button class="btn btn-primary"
@@ -480,14 +504,10 @@ else
                 {
                     <p class="import-message">@followUpRunMessage</p>
                 }
+            </div>
 
-                @if (!string.IsNullOrWhiteSpace(settingsMessage))
-                {
-                    <p class="import-message">@settingsMessage</p>
-                }
-                <hr />
-
-                <h4>Registrierungsprüfung</h4>
+            <div class="tool-card mb-3">
+                <h5>Scraping-Test</h5>
 
                 <p class="table-muted">
                     Testet, ob die THG-Plattform erreichbar ist und keine Sicherheitsabfrage erscheint.
@@ -503,9 +523,10 @@ else
                 {
                     <p class="import-message">@scrapingCheckMessage</p>
                 }
-                <hr />
+            </div>
 
-                <h4>Referral-Liste auslesen</h4>
+            <div class="tool-card mb-3">
+                <h5>Referral-Liste auslesen</h5>
 
                 <p class="table-muted">
                     Liest die Referral-Liste aus und zeigt, wie viele Einträge gefunden wurden.
@@ -521,9 +542,10 @@ else
                 {
                     <p class="import-message">@referralReadMessage</p>
                 }
-                <hr />
+            </div>
 
-                <h4>Registrierungen abgleichen</h4>
+            <div class="tool-card mb-3">
+                <h5>Registrierungen abgleichen</h5>
 
                 <p class="table-muted">
                     Vergleicht die Referral-Liste mit den importierten Kunden anhand des Namens und markiert Treffer als registriert.
@@ -539,32 +561,48 @@ else
                 {
                     <p class="import-message">@registrationCheckMessage</p>
                 }
-                <hr />
+            </div>
 
-                <h4>Automatisierung</h4>
+            <hr />
 
-                <div class="settings-grid">
+            <h4>Automatisierung</h4>
 
-                    <div class="form-group">
-                        <label class="remember-me">
-                            <InputCheckbox @bind-Value="followUpSettings.AutoRegistrationCheckEnabled" />
-                            Registrierungsprüfung automatisch ausführen
-                        </label>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Automatik alle X Stunden</label>
-                        <InputNumber class="form-control"
-                                     @bind-Value="followUpSettings.BackgroundRunEveryHours" />
-                    </div>
-
-                    <div class="form-group">
-                        <label>Max. Mails pro Lauf</label>
-                        <InputNumber class="form-control"
-                                     @bind-Value="followUpSettings.MaxMailsPerRun" />
-                    </div>
-
+            <div class="settings-grid">
+                <div class="form-group">
+                    <label class="remember-me">
+                        <InputCheckbox @bind-Value="followUpSettings.AutoRegistrationCheckEnabled" />
+                        Registrierungsprüfung automatisch ausführen
+                    </label>
                 </div>
+
+                <div class="form-group">
+                    <label>Automatik alle X Stunden</label>
+                    <InputNumber class="form-control"
+                                 @bind-Value="followUpSettings.BackgroundRunEveryHours" />
+                </div>
+
+                <div class="form-group">
+                    <label>Max. Mails pro Lauf</label>
+                    <InputNumber class="form-control"
+                                 @bind-Value="followUpSettings.MaxMailsPerRun" />
+                </div>
+                <div class="form-group">
+                    <label>Versand ab Uhrzeit</label>
+                    <input class="form-control"
+                           type="time"
+                           value="@mailSendWindowStartText"
+                           @onchange="OnMailSendWindowStartChanged" />
+                </div>
+
+                <div class="form-group">
+                    <label>Versand bis Uhrzeit</label>
+                    <input class="form-control"
+                           type="time"
+                           value="@mailSendWindowEndText"
+                           @onchange="OnMailSendWindowEndChanged" />
+                </div>
+            </div>
+
             <div class="mt-4">
                 <button class="btn btn-primary"
                         @onclick="SaveFollowUpSettings">
@@ -572,10 +610,16 @@ else
                 </button>
             </div>
 
+            @if (!string.IsNullOrWhiteSpace(settingsMessage))
+            {
+                <p class="import-message">@settingsMessage</p>
+            }
+
+            <hr />
+
             <h4 class="mt-5">Postfach-Import</h4>
 
-            <div class="card p-4 mb-4">
-
+            <div class="tool-card mb-4">
                 <div class="form-check mb-3">
                     <InputCheckbox @bind-Value="inboxSettings.IsEnabled"
                                    class="form-check-input" />
@@ -585,98 +629,89 @@ else
                     </label>
                 </div>
 
-                <div class="row g-3">
-
-                    <div class="col-md-6">
+                <div class="settings-grid">
+                    <div class="form-group">
                         <label>IMAP Host</label>
-
                         <InputText class="form-control"
                                    @bind-Value="inboxSettings.ImapHost" />
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="form-group">
                         <label>Port</label>
-
                         <InputNumber class="form-control"
                                      @bind-Value="inboxSettings.ImapPort" />
                     </div>
 
-                    <div class="col-md-3">
-                        <label>SSL</label>
-
-                        <InputCheckbox class="form-check-input ms-2"
-                                       @bind-Value="inboxSettings.UseSsl" />
+                    <div class="form-group">
+                        <label class="remember-me">
+                            <InputCheckbox @bind-Value="inboxSettings.UseSsl" />
+                            SSL verwenden
+                        </label>
                     </div>
 
-                    <div class="col-md-6">
+                    <div class="form-group">
                         <label>Benutzername</label>
-
                         <InputText class="form-control"
                                    @bind-Value="inboxSettings.Username" />
                     </div>
 
-                    <div class="col-md-6">
+                    <div class="form-group">
                         <label>Passwort</label>
-
                         <InputText type="password"
                                    class="form-control"
                                    @bind-Value="inboxSettings.Password" />
                     </div>
 
-                    <div class="col-md-12">
+                    <div class="form-group">
                         <label>Erlaubter Absender</label>
-
                         <InputText class="form-control"
                                    @bind-Value="inboxSettings.AllowedSender" />
                     </div>
-
                 </div>
 
                 <div class="mt-4 d-flex gap-2">
-
                     <button class="btn btn-primary"
                             @onclick="SaveInboxSettings">
-                        Speichern
+                        Postfach speichern
                     </button>
 
                     <button class="btn btn-outline-secondary"
                             @onclick="TestInboxImport">
                         Jetzt testen
                     </button>
-
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(inboxStatus))
                 {
-                    <div class="alert alert-info mt-3">
-                        @inboxStatus
-                    </div>
+                    <p class="import-message">@inboxStatus</p>
                 }
 
                 <div class="mt-4 small text-muted">
-
                     <div>
                         Letzter Check:
-                        @inboxSettings.LastCheckUtc
+                        @(inboxSettings.LastCheckUtc?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Noch nie")
                     </div>
 
                     <div>
                         Letzter Erfolg:
-                        @inboxSettings.LastSuccessUtc
+                        @(inboxSettings.LastSuccessUtc?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Noch nie")
                     </div>
 
                     <div>
                         Letzter Fehler:
-                        @inboxSettings.LastError
+                        @(string.IsNullOrWhiteSpace(inboxSettings.LastError) ? "Keiner" : inboxSettings.LastError)
                     </div>
-
                 </div>
-
             </div>
-            }
-
-        </div>
-    }
+        }
+        else
+        {
+            <p class="table-muted">
+                Einstellungen werden geladen...
+            </p>
+        }
+    </div>
+}
 
 
 
@@ -729,6 +764,13 @@ else
     private int initialMailsSent =>
         customers.Count(x => x.InitialMailSent);
 
+    private int waitingForInitialMail =>
+    customers.Count(x =>
+        !x.InitialMailSent
+        && !x.IsRegistered
+        && !string.IsNullOrWhiteSpace(x.Email));
+        
+        
     private double conversionRate =>
         totalCustomers == 0
             ? 0
@@ -772,6 +814,44 @@ else
         await LoadInboxSettings();
     }
 
+    private string mailSendWindowStartText =>
+    followUpSettings?.MailSendWindowStart.ToString(@"hh\:mm") ?? "08:00";
+
+    private string mailSendWindowEndText =>
+        followUpSettings?.MailSendWindowEnd.ToString(@"hh\:mm") ?? "18:00";
+
+    private void OnMailSendWindowStartChanged(ChangeEventArgs e)
+    {
+        if (followUpSettings == null)
+        {
+            return;
+        }
+
+        var value = e.Value?.ToString();
+
+        if (TimeSpan.TryParse(value, out var parsed))
+        {
+            followUpSettings.MailSendWindowStart = parsed;
+        }
+    }
+
+    private void OnMailSendWindowEndChanged(ChangeEventArgs e)
+    {
+        if (followUpSettings == null)
+        {
+            return;
+        }
+
+        var value = e.Value?.ToString();
+
+        if (TimeSpan.TryParse(value, out var parsed))
+        {
+            followUpSettings.MailSendWindowEnd = parsed;
+        }
+    }
+    
+    
+    
     private async Task LoadInboxSettings()
     {
         if (string.IsNullOrWhiteSpace(currentUserId))
@@ -1146,19 +1226,21 @@ else
 
         followUpSettings = await DbContext.ThgFollowUpSettings
             .FirstOrDefaultAsync(x => x.UserId == currentUserId);
+            
 
         if (followUpSettings == null)
         {
             followUpSettings = new ThgFollowUpSettings
             {
                 UserId = currentUserId,
-                FollowUpsEnabled = true,
                 FollowUp1AfterDays = 3,
                 FollowUp2AfterDays = 7,
                 FollowUp3AfterDays = 14,
                 MaxFollowUps = 3,
                 NotificationEmail = "",
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
+                MailSendWindowStart = new TimeSpan(8, 0, 0),
+                MailSendWindowEnd = new TimeSpan(18, 0, 0)
             };
 
             DbContext.ThgFollowUpSettings.Add(followUpSettings);

@@ -16,6 +16,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("/keys"));
 
+builder.Services.AddScoped<ThgInboxImportService>();
+builder.Services.AddHostedService<ThgInboxBackgroundService>();
+builder.Services.AddHostedService<ThgFollowUpBackgroundService>();
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders =

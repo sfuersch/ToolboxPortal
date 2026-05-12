@@ -52,6 +52,7 @@ public class ThgMailTemplateService
             ?? "https://geld-fuer-eauto.de";
 
         return template
+            .Replace("{{Anrede}}", customer.Salutation ?? "")
             .Replace("{{Vorname}}", customer.FirstName ?? "")
             .Replace("{{Nachname}}", customer.LastName ?? "")
             .Replace("{{Firma}}", customer.Company ?? "")

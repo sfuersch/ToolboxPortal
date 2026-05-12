@@ -9,6 +9,8 @@ public class ThgCustomer
     [Required]
     public string UserId { get; set; } = "";
 
+    public string? Salutation { get; set; }
+
     public string FirstName { get; set; } = "";
 
     public string LastName { get; set; } = "";

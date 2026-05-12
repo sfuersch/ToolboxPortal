@@ -22,6 +22,8 @@ namespace ToolboxPortal.Data
 
         public DbSet<ThgFollowUpSettings> ThgFollowUpSettings { get; set; }
 
+        public DbSet<ThgInboxSettings> ThgInboxSettings { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -31,6 +33,10 @@ namespace ToolboxPortal.Data
                 {
                     owned.ToJson("Data");
                 });
+
+            builder.Entity<ThgCustomer>()
+                .Property(x => x.FirstRegistrationDate)
+                .HasColumnType("date");
         }
     }
 }

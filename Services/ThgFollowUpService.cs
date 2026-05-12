@@ -33,13 +33,16 @@ public class ThgFollowUpService
         }
 
         var customers = await _dbContext.ThgCustomers
-            .Where(x =>
-                x.UserId == userId
-                && !x.IsRegistered
-                && x.InitialMailSent
-                && !string.IsNullOrWhiteSpace(x.Email)
-                && x.FollowUpCount < settings.MaxFollowUps)
-            .ToListAsync();
+    .Where(x =>
+        x.UserId == userId
+        && !x.IsRegistered
+        && !string.IsNullOrWhiteSpace(x.Email)
+        && (
+            !x.InitialMailSent
+            || x.FollowUpCount < settings.MaxFollowUps
+        ))
+    .OrderBy(x => x.CreatedAt)
+    .ToListAsync();
 
         var sent = 0;
         var failed = 0;
@@ -76,19 +79,27 @@ public class ThgFollowUpService
 
                 await _emailService.SendEmailAsync(customer.Email, subject, body);
 
-                customer.FollowUpCount++;
+                if (nextFollowUp.Number == 0)
+                {
+                    customer.InitialMailSent = true;
+                    customer.InitialMailSentAt = now;
+                }
+                else
+                {
+                    customer.FollowUpCount++;
 
-                if (nextFollowUp.Number == 1)
-                {
-                    customer.FollowUp1SentAt = now;
-                }
-                else if (nextFollowUp.Number == 2)
-                {
-                    customer.FollowUp2SentAt = now;
-                }
-                else if (nextFollowUp.Number == 3)
-                {
-                    customer.FollowUp3SentAt = now;
+                    if (nextFollowUp.Number == 1)
+                    {
+                        customer.FollowUp1SentAt = now;
+                    }
+                    else if (nextFollowUp.Number == 2)
+                    {
+                        customer.FollowUp2SentAt = now;
+                    }
+                    else if (nextFollowUp.Number == 3)
+                    {
+                        customer.FollowUp3SentAt = now;
+                    }
                 }
 
                 customer.LastMailSentAt = now;
@@ -132,10 +143,15 @@ public class ThgFollowUpService
     }
 
     private static FollowUpStep? GetNextFollowUp(
-        ThgCustomer customer,
-        ThgFollowUpSettings settings,
-        DateTime now)
+    ThgCustomer customer,
+    ThgFollowUpSettings settings,
+    DateTime now)
     {
+        if (!customer.InitialMailSent)
+        {
+            return new FollowUpStep(0, "Initial");
+        }
+
         if (customer.InitialMailSentAt == null)
         {
             return null;

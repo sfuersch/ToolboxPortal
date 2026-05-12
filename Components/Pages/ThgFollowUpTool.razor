@@ -18,6 +18,7 @@
 @inject ThgFollowUpService FollowUpService
 @inject ThgScrapingService ScrapingService
 @inject IJSRuntime JS
+@inject ThgInboxImportService InboxImportService
 
 <PageTitle>THG-Prämie Follow-up Tool</PageTitle>
 
@@ -359,6 +360,7 @@ else
                     <strong>Verfügbare Variablen</strong>
 
                     <div class="template-vars">
+                        <code>{{Anrede}}</code>
                         <code>{{Vorname}}</code>
                         <code>{{Nachname}}</code>
                         <code>{{Firma}}</code>
@@ -563,6 +565,114 @@ else
                     </div>
 
                 </div>
+            <div class="mt-4">
+                <button class="btn btn-primary"
+                        @onclick="SaveFollowUpSettings">
+                    Automatisierung speichern
+                </button>
+            </div>
+
+            <h4 class="mt-5">Postfach-Import</h4>
+
+            <div class="card p-4 mb-4">
+
+                <div class="form-check mb-3">
+                    <InputCheckbox @bind-Value="inboxSettings.IsEnabled"
+                                   class="form-check-input" />
+
+                    <label class="form-check-label">
+                        Import aktivieren
+                    </label>
+                </div>
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label>IMAP Host</label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="inboxSettings.ImapHost" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <label>Port</label>
+
+                        <InputNumber class="form-control"
+                                     @bind-Value="inboxSettings.ImapPort" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <label>SSL</label>
+
+                        <InputCheckbox class="form-check-input ms-2"
+                                       @bind-Value="inboxSettings.UseSsl" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label>Benutzername</label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="inboxSettings.Username" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label>Passwort</label>
+
+                        <InputText type="password"
+                                   class="form-control"
+                                   @bind-Value="inboxSettings.Password" />
+                    </div>
+
+                    <div class="col-md-12">
+                        <label>Erlaubter Absender</label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="inboxSettings.AllowedSender" />
+                    </div>
+
+                </div>
+
+                <div class="mt-4 d-flex gap-2">
+
+                    <button class="btn btn-primary"
+                            @onclick="SaveInboxSettings">
+                        Speichern
+                    </button>
+
+                    <button class="btn btn-outline-secondary"
+                            @onclick="TestInboxImport">
+                        Jetzt testen
+                    </button>
+
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(inboxStatus))
+                {
+                    <div class="alert alert-info mt-3">
+                        @inboxStatus
+                    </div>
+                }
+
+                <div class="mt-4 small text-muted">
+
+                    <div>
+                        Letzter Check:
+                        @inboxSettings.LastCheckUtc
+                    </div>
+
+                    <div>
+                        Letzter Erfolg:
+                        @inboxSettings.LastSuccessUtc
+                    </div>
+
+                    <div>
+                        Letzter Fehler:
+                        @inboxSettings.LastError
+                    </div>
+
+                </div>
+
+            </div>
             }
 
         </div>
@@ -603,6 +713,9 @@ else
     private int htmlEditorKey = 0;
     private bool shouldInitEditor;
     private bool editorIsInitializing;
+    private ThgInboxSettings inboxSettings = new();
+
+    private string? inboxStatus;
 
     private int openCustomers =>
         customers.Count(x => !x.IsRegistered && !string.IsNullOrWhiteSpace(x.Email));
@@ -656,6 +769,24 @@ else
         await LoadCustomers();
         await LoadTemplates();
         await LoadFollowUpSettings();
+        await LoadInboxSettings();
+    }
+
+    private async Task LoadInboxSettings()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+
+        inboxSettings = await DbContext.ThgInboxSettings
+            .FirstOrDefaultAsync(x => x.UserId == currentUserId)
+            ?? new ThgInboxSettings
+            {
+                UserId = currentUserId,
+                ImapPort = 993,
+                UseSsl = true
+            };
     }
 
     private async Task SendTestEmail()
@@ -674,6 +805,7 @@ else
 
         var sampleCustomer = new ThgCustomer
         {
+            Salutation = "Herr",
             FirstName = "Max",
             LastName = "Mustermann",
             Company = "Musterfirma GmbH",
@@ -973,6 +1105,36 @@ else
             .Where(x => x.ThgCustomerId == customerId)
             .OrderByDescending(x => x.SentAt)
             .ToListAsync();
+    }
+
+    private async Task SaveInboxSettings()
+    {
+        if (inboxSettings.Id == 0)
+        {
+            DbContext.ThgInboxSettings.Add(inboxSettings);
+        }
+
+        await DbContext.SaveChangesAsync();
+
+        inboxStatus = "Postfach-Einstellungen gespeichert.";
+    }
+
+    private async Task TestInboxImport()
+    {
+        inboxStatus = "Postfach wird geprüft...";
+
+        StateHasChanged();
+
+        try
+        {
+            await InboxImportService.CheckInboxAsync();
+
+            inboxStatus = "Postfachprüfung erfolgreich.";
+        }
+        catch (Exception ex)
+        {
+            inboxStatus = ex.Message;
+        }
     }
 
     private async Task LoadFollowUpSettings()

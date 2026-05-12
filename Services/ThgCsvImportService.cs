@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿
+using System.Globalization;
 using System.Text;
 using ToolboxPortal.Models;
 
@@ -75,6 +76,7 @@ public class ThgCsvImportService
             var customer = new ThgCustomer
             {
                 UserId = userId,
+                Salutation = Get("St.-Anrede"),
                 FirstName = Get("St.-Vorname"),
                 LastName = Get("St.-Name"),
                 Company = Get("St.-Firma"),
@@ -96,6 +98,8 @@ public class ThgCsvImportService
 
         return customers;
     }
+
+   
 
     private static List<string> SplitCsvLine(string line)
     {

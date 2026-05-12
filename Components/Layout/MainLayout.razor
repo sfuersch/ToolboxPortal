@@ -167,7 +167,7 @@
             return;
         }
 
-        isAdmin = await UserManager.IsInRoleAsync(user, "Admin");
+        isAdmin = authState.User.IsInRole("Admin");
 
         canAccessAi = await ModuleAccessService.HasAccessAsync(
             user.Id,

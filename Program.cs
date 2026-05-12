@@ -17,8 +17,12 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("/keys"));
 
 builder.Services.AddScoped<ThgInboxImportService>();
-builder.Services.AddHostedService<ThgInboxBackgroundService>();
-builder.Services.AddHostedService<ThgFollowUpBackgroundService>();
+
+if (!args.Contains("--migrate"))
+{
+    builder.Services.AddHostedService<ThgInboxBackgroundService>();
+    builder.Services.AddHostedService<ThgFollowUpBackgroundService>();
+}
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -84,13 +88,19 @@ builder.Services.AddScoped<ThgScrapingService>();
 
 var app = builder.Build();
 
-app.UseForwardedHeaders();
-
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    
+    dbContext.Database.Migrate();
 }
+
+if (args.Contains("--migrate"))
+{
+    return;
+}
+
+app.UseForwardedHeaders();
+
 
 if (app.Environment.IsDevelopment())
 {

@@ -45,8 +45,8 @@ public class ThgFollowUpBackgroundService : BackgroundService
         var scrapingService = scope.ServiceProvider.GetRequiredService<ThgScrapingService>();
 
         var settingsList = await dbContext.ThgFollowUpSettings
-            .Where(x => x.FollowUpsEnabled)
-            .ToListAsync(stoppingToken);
+    .Where(x => !x.AutomationPaused)
+    .ToListAsync(stoppingToken);
 
         foreach (var settings in settingsList)
         {
@@ -54,6 +54,12 @@ public class ThgFollowUpBackgroundService : BackgroundService
             {
                 return;
             }
+
+            _logger.LogInformation(
+    "THG Automation geprüft für User {UserId}. Letzter Lauf: {LastRun}, Intervall: {Interval} Stunden.",
+    settings.UserId,
+    settings.LastAutomationRunAt,
+    settings.BackgroundRunEveryHours);
 
             if (!ShouldRun(settings))
             {

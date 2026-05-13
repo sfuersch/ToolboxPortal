@@ -1,6 +1,7 @@
 ﻿using ToolboxPortal.Data;
 using ToolboxPortal.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace ToolboxPortal.Services;
 
@@ -47,6 +48,8 @@ public class ThgMailTemplateService
 
     public string RenderTemplate(string template, ThgCustomer customer)
     {
+        template = RenderConditionals(template, customer);
+
         var registrationLink =
             _configuration["ThgSettings:RegistrationLink"]
             ?? "https://geld-fuer-eauto.de";
@@ -63,6 +66,67 @@ public class ThgMailTemplateService
             .Replace("{{THGLink}}", registrationLink);
     }
 
+    private static string RenderConditionals(string template, ThgCustomer customer)
+    {
+        return Regex.Replace(
+            template,
+            @"\{\{#if\s+(.*?)\}\}(.*?)(?:\{\{#elseif\s+(.*?)\}\}(.*?))?(?:\{\{else\}\}(.*?))?\{\{/if\}\}",
+            match =>
+            {
+                var ifCondition = match.Groups[1].Value;
+                var ifContent = match.Groups[2].Value;
+
+                var elseifCondition = match.Groups[3].Success
+                    ? match.Groups[3].Value
+                    : "";
+
+                var elseifContent = match.Groups[4].Success
+                    ? match.Groups[4].Value
+                    : "";
+
+                var elseContent = match.Groups[5].Success
+                    ? match.Groups[5].Value
+                    : "";
+
+                if (EvaluateCondition(ifCondition, customer))
+                {
+                    return ifContent;
+                }
+
+                if (!string.IsNullOrWhiteSpace(elseifCondition)
+                    && EvaluateCondition(elseifCondition, customer))
+                {
+                    return elseifContent;
+                }
+
+                return elseContent;
+            },
+            RegexOptions.Singleline);
+    }
+
+    private static bool EvaluateCondition(string condition, ThgCustomer customer)
+    {
+        var fields = condition
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return fields.All(field => !string.IsNullOrWhiteSpace(GetFieldValue(field, customer)));
+    }
+
+    private static string GetFieldValue(string field, ThgCustomer customer)
+    {
+        return field.ToLowerInvariant() switch
+        {
+            "anrede" => customer.Salutation ?? "",
+            "vorname" => customer.FirstName ?? "",
+            "nachname" => customer.LastName ?? "",
+            "firma" => customer.Company ?? "",
+            "email" => customer.Email ?? "",
+            "kennzeichen" => customer.LicensePlate ?? "",
+            "vin" => customer.Vin ?? "",
+            "erstzulassung" => customer.FirstRegistrationDate?.ToString("dd.MM.yyyy") ?? "",
+            _ => ""
+        };
+    }
     private static List<ThgMailTemplate> GetDefaultTemplates(string userId)
     {
         return new List<ThgMailTemplate>

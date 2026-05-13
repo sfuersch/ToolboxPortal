@@ -364,10 +364,18 @@ else
 }
                 </div>
 
-                <div class="tool-card mb-3">
+            <div class="tool-card mb-3">
+                <div class="result-header">
                     <strong>Verfügbare Variablen</strong>
 
-                    <div class="template-vars">
+                    <button type="button"
+                            class="copy-btn"
+                            @onclick="() => showTemplateHelp = true">
+                        Hilfe
+                    </button>
+                </div>
+
+                <div class="template-vars">
                         <code>{{Anrede}}</code>
                         <code>{{Vorname}}</code>
                         <code>{{Nachname}}</code>
@@ -379,7 +387,91 @@ else
                         <code>{{THGLink}}</code>
                     </div>
                 </div>
+                @if (showTemplateHelp)
+{
+    <div class="modal-backdrop-custom">
+        <div class="modal-card">
+            <div class="result-header">
+                <h3>Hilfe zu Variablen und Bedingungen</h3>
 
+                <button type="button"
+                        class="copy-btn"
+                        @onclick="() => showTemplateHelp = false">
+                    Schließen
+                </button>
+            </div>
+
+            <h4>Variablen verwenden</h4>
+
+            <p>
+                Variablen werden beim Versand automatisch durch Kundendaten ersetzt.
+            </p>
+
+            <pre><code>Hallo {{Anrede}} {{Nachname}},</code></pre>
+
+            <p>Beispielausgabe:</p>
+
+            <pre><code>Hallo Herr Müller,</code></pre>
+
+            <h4>Bedingungen verwenden</h4>
+
+            <p>
+                Mit Bedingungen kannst du steuern, welcher Text verwendet wird,
+                wenn bestimmte Felder vorhanden sind.
+            </p>
+
+            <pre><code>{{#if Anrede Nachname}}
+Hallo {{Anrede}} {{Nachname}},
+{{#elseif Firma}}
+Sehr geehrte Damen und Herren,
+{{else}}
+Guten Tag,
+{{/if}}</code></pre>
+
+            <h4>Logik</h4>
+
+            <p>
+                <strong>{{#if Anrede Nachname}}</strong> bedeutet:
+                Anrede und Nachname müssen gefüllt sein.
+            </p>
+
+            <p>
+                <strong>{{#elseif Firma}}</strong> bedeutet:
+                Wenn keine persönliche Anrede möglich ist, aber eine Firma vorhanden ist,
+                wird dieser Block verwendet.
+            </p>
+
+            <p>
+                <strong>{{else}}</strong> wird verwendet, wenn keine der Bedingungen erfüllt ist.
+            </p>
+
+            <h4>Empfohlene Anrede</h4>
+
+            <pre><code>&lt;p&gt;
+{{#if Anrede Nachname}}
+Hallo {{Anrede}} {{Nachname}},
+{{#elseif Firma}}
+Sehr geehrte Damen und Herren,
+{{else}}
+Guten Tag,
+{{/if}}
+&lt;/p&gt;</code></pre>
+
+            <h4>Verfügbare Felder für Bedingungen</h4>
+
+            <ul>
+                <li>Anrede</li>
+                <li>Vorname</li>
+                <li>Nachname</li>
+                <li>Firma</li>
+                <li>Email</li>
+                <li>Kennzeichen</li>
+                <li>VIN</li>
+                <li>Erstzulassung</li>
+            </ul>
+        </div>
+    </div>
+}
                 <button class="btn btn-primary"
                         @onclick="SaveTemplate">
                     Template speichern
@@ -751,6 +843,7 @@ else
     private bool shouldInitEditor;
     private bool editorIsInitializing;
     private ThgInboxSettings inboxSettings = new();
+    private bool showTemplateHelp;
 
     private string? inboxStatus;
 

@@ -252,6 +252,14 @@
                                             </button>
                                         }
 
+                                        @if (!customer.IsRegistered)
+                                        {
+                                            <button class="copy-btn"
+                                                    @onclick="() => MarkCustomerAsRegistered(customer)">
+                                                Als registriert markieren
+                                            </button>
+                                        }
+
                                         <button class="copy-btn"
                                                 @onclick="() => ToggleHistory(customer.Id)">
                                             Verlauf
@@ -922,6 +930,27 @@ Guten Tag,
         await LoadTemplates();
         await LoadFollowUpSettings();
         await LoadInboxSettings();
+    }
+
+    private async Task MarkCustomerAsRegistered(ThgCustomer customer)
+    {
+        customer.IsRegistered = true;
+
+        DbContext.ThgMailLogs.Add(new ThgMailLog
+        {
+            ThgCustomerId = customer.Id,
+            RecipientEmail = customer.Email ?? "",
+            MailType = "ManualRegistration",
+            Subject = "Manuell als registriert markiert",
+            SentAt = DateTime.UtcNow,
+            Success = true
+        });
+
+        await DbContext.SaveChangesAsync();
+
+        mailSendMessage = $"{customer.FirstName} {customer.LastName} wurde als registriert markiert.";
+
+        await LoadCustomers();
     }
 
     private string mailSendWindowStartText =>

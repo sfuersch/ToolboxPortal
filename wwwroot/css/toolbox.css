@@ -1005,3 +1005,26 @@ a {
     .modal-card code {
         white-space: pre-wrap;
     }
+.icon-actions {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.icon-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 1.05rem;
+    padding: 0.25rem 0.35rem;
+    border-radius: 6px;
+}
+
+    .icon-btn:hover {
+        background: rgba(0, 0, 0, 0.08);
+    }
+
+    .icon-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }

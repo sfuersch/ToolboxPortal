@@ -242,27 +242,30 @@
                                     }
                                 </td>
                                 <td>
-                                    <div class="table-actions">
+                                    <div class="table-actions icon-actions">
                                         @if (!customer.IsRegistered && !string.IsNullOrWhiteSpace(customer.Email))
                                         {
-                                            <button class="copy-btn"
+                                            <button class="icon-btn"
+                                                    title="✉️ Erstmail senden"
                                                     @onclick="() => SendInitialMailToCustomer(customer)"
                                                     disabled="@isSendingMails">
-                                                Mail senden
+                                                ✉️
                                             </button>
                                         }
 
                                         @if (!customer.IsRegistered)
                                         {
-                                            <button class="copy-btn"
+                                            <button class="icon-btn"
+                                                    title="✅ Als registriert markieren"
                                                     @onclick="() => MarkCustomerAsRegistered(customer)">
-                                                Als registriert markieren
+                                                ✅
                                             </button>
                                         }
 
-                                        <button class="copy-btn"
+                                        <button class="icon-btn"
+                                                title="🕘 Verlauf anzeigen"
                                                 @onclick="() => ToggleHistory(customer.Id)">
-                                            Verlauf
+                                            🕘
                                         </button>
                                     </div>
                                 </td>

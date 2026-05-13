@@ -34,7 +34,13 @@ public class ThgFollowUpService
             return (0, 0);
         }
 
-        var localNow = DateTime.Now.TimeOfDay;
+        var berlinTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin");
+
+        var berlinNow = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.UtcNow,
+            berlinTimeZone);
+
+        var localNow = berlinNow.TimeOfDay;
 
         if (localNow < settings.MailSendWindowStart
             || localNow > settings.MailSendWindowEnd)

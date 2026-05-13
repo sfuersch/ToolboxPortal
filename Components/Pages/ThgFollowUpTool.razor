@@ -95,8 +95,11 @@
             <span>Letzte Automatik</span>
             <strong>
                 @(lastAutomationRunDate == null
-                    ? "Nie"
-                    : lastAutomationRunDate.Value.ToLocalTime().ToString("dd.MM. HH:mm"))
+    ? "Nie"
+    : TimeZoneInfo.ConvertTimeFromUtc(
+        DateTime.SpecifyKind(lastAutomationRunDate.Value, DateTimeKind.Utc),
+        TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin")
+    ).ToString("dd.MM. HH:mm"))
             </strong>
             <small>letzter Hintergrundlauf</small>
         </div>

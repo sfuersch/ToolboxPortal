@@ -17,8 +17,41 @@
 
 <body>
     <Routes @rendermode="PageRenderMode" />
-    
+    <div id="components-reconnect-modal">
+        <div class="reconnect-box">
+            Verbindung zum Server wird wiederhergestellt...
+        </div>
+    </div>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script>
+    window.addEventListener("DOMContentLoaded", () => {
+        const modal = document.getElementById("components-reconnect-modal");
+
+        if (!modal) {
+            return;
+        }
+
+        const observer = new MutationObserver(() => {
+            if (modal.classList.contains("components-reconnect-show")) {
+                console.warn("Blazor-Verbindung getrennt. Reconnect läuft...");
+            }
+
+            if (modal.classList.contains("components-reconnect-failed")
+                || modal.classList.contains("components-reconnect-rejected")) {
+                console.warn("Blazor-Reconnect fehlgeschlagen. Seite wird neu geladen...");
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+            }
+        });
+
+        observer.observe(modal, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
     <script src="@Assets["Components/Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>
     <script src="js/theme.js"></script>
     <script>
@@ -26,11 +59,7 @@
     </script>
     <script src="https://cdn.tiny.cloud/1/d7hxn8b5mh58d12zpynbysgdw78bszrwnekex9plifcbkhlg/tinymce/6/tinymce.min.js"></script>
     <script src="js/templateEditor.js"></script>
-    <div id="components-reconnect-modal">
-        <div class="reconnect-box">
-            Verbindung zum Server wird wiederhergestellt...
-        </div>
-    </div>
+    
 </body>
 
 </html>

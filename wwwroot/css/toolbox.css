@@ -1027,6 +1027,29 @@ a {
     border-radius: 6px;
     padding: 0;
 }
+#components-reconnect-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+}
+
+    #components-reconnect-modal.components-reconnect-show,
+    #components-reconnect-modal.components-reconnect-failed,
+    #components-reconnect-modal.components-reconnect-rejected {
+        display: flex;
+    }
+
+.reconnect-box {
+    background: white;
+    color: #111;
+    padding: 1.5rem 2rem;
+    border-radius: 14px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+}
 
     .icon-btn:hover {
         background: rgba(0, 0, 0, 0.08);

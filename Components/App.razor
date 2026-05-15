@@ -24,34 +24,70 @@
     </div>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script>
-    window.addEventListener("DOMContentLoaded", () => {
+        window.addEventListener("DOMContentLoaded", () => {
         const modal = document.getElementById("components-reconnect-modal");
 
         if (!modal) {
-            return;
+        return;
         }
 
+        let reconnectTimer = null;
+
+        const reloadPage = () => {
+        console.warn("Blazor-Verbindung nicht stabil. Seite wird neu geladen...");
+        window.location.reload();
+        };
+
         const observer = new MutationObserver(() => {
-            if (modal.classList.contains("components-reconnect-show")) {
-                console.warn("Blazor-Verbindung getrennt. Reconnect läuft...");
-            }
+        const isReconnecting =
+        modal.classList.contains("components-reconnect-show");
 
-            if (modal.classList.contains("components-reconnect-failed")
-                || modal.classList.contains("components-reconnect-rejected")) {
-                console.warn("Blazor-Reconnect fehlgeschlagen. Seite wird neu geladen...");
+        const hasFailed =
+        modal.classList.contains("components-reconnect-failed")
+        || modal.classList.contains("components-reconnect-rejected");
 
-                setTimeout(() => {
-                    window.location.reload();
-                }, 3000);
-            }
+        if (isReconnecting) {
+        console.warn("Blazor-Verbindung getrennt. Reconnect läuft...");
+
+        clearTimeout(reconnectTimer);
+
+        reconnectTimer = setTimeout(() => {
+        reloadPage();
+        }, 10000);
+        }
+
+        if (hasFailed) {
+        clearTimeout(reconnectTimer);
+
+        setTimeout(() => {
+        reloadPage();
+        }, 2000);
+        }
+
+        if (!isReconnecting && !hasFailed) {
+        clearTimeout(reconnectTimer);
+        }
         });
 
         observer.observe(modal, {
-            attributes: true,
-            attributeFilter: ["class"]
+        attributes: true,
+        attributeFilter: ["class"]
         });
-    });
-</script>
+
+        document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+        const isBroken =
+        modal.classList.contains("components-reconnect-show")
+        || modal.classList.contains("components-reconnect-failed")
+        || modal.classList.contains("components-reconnect-rejected");
+
+        if (isBroken) {
+        reloadPage();
+        }
+        }
+        });
+        });
+    </script>
     <script src="@Assets["Components/Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>
     <script src="js/theme.js"></script>
     <script>

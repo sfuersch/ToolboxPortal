@@ -95,9 +95,11 @@ Freundliche Grüße<br>
 
         using var smtp = new SmtpClient();
 
-        var secureSocketOptions = settings.UseSsl
-            ? SecureSocketOptions.StartTls
-            : SecureSocketOptions.Auto;
+        var secureSocketOptions = settings.SmtpPort == 465
+    ? SecureSocketOptions.SslOnConnect
+    : settings.UseSsl
+        ? SecureSocketOptions.StartTls
+        : SecureSocketOptions.None;
 
         await smtp.ConnectAsync(
             settings.SmtpHost,

@@ -32,7 +32,7 @@
                         </NavLink>
                     </div>
 
-                    @if (canAccessAi || canAccessThg)
+                    @if (canAccessAi || canAccessThg || canAccessLeadOptimizer)
                     {
                         <div class="nav-section">
                             <div class="nav-section-title">
@@ -50,6 +50,13 @@
                             {
                                 <NavLink href="/tools/thg-followup">
                                     THG-Prämie Follow-up
+                                </NavLink>
+                            }
+
+                            @if (canAccessLeadOptimizer)
+                            {
+                                <NavLink href="/tools/lead-optimizer">
+                                    Lead Optimierung
                                 </NavLink>
                             }
                         </div>
@@ -160,6 +167,7 @@
     private bool canAccessAi;
     private bool canAccessThg;
     private bool isAdmin;
+    private bool canAccessLeadOptimizer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -181,5 +189,9 @@
         canAccessThg = await ModuleAccessService.HasAccessAsync(
             user.Id,
             "thg-followup");
+
+        canAccessLeadOptimizer = await ModuleAccessService.HasAccessAsync(
+            user.Id,
+            "lead-optimizer");
     }
 }

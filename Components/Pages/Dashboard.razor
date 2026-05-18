@@ -61,11 +61,27 @@
         </div>
     }
 
+    @if (canAccessLeadOptimizer)
+    {
+        <div class="tool-card">
+            <div class="tool-icon">🎯</div>
+
+            <h3>Lead Optimierung</h3>
+
+            <p>Leads aus mobile.de, Website und Kampagnen qualifizieren.</p>
+
+            <a class="btn btn-primary" href="/tools/lead-optimizer">
+                Öffnen
+            </a>
+        </div>
+    }
+
 </div>
 
 @code {
     private bool canAccessAi;
     private bool canAccessThg;
+    private bool canAccessLeadOptimizer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -82,5 +98,6 @@
 
         canAccessAi = accessList.Contains("ai-tool");
         canAccessThg = accessList.Contains("thg-followup");
+        canAccessLeadOptimizer = accessList.Contains("lead-optimizer");
     }
 }

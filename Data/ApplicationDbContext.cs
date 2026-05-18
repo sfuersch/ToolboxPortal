@@ -26,6 +26,18 @@ namespace ToolboxPortal.Data
 
         public DbSet<ThgInboxSettings> ThgInboxSettings { get; set; }
 
+        public DbSet<LeadSource> LeadSources => Set<LeadSource>();
+
+        public DbSet<LeadCampaign> LeadCampaigns => Set<LeadCampaign>();
+
+        public DbSet<LeadOptimizerLead> LeadOptimizerLeads => Set<LeadOptimizerLead>();
+
+        public DbSet<LeadOptimizerLeadEvent> LeadOptimizerLeadEvents => Set<LeadOptimizerLeadEvent>();
+
+        public DbSet<LeadOptimizerTask> LeadOptimizerTasks => Set<LeadOptimizerTask>();
+
+        public DbSet<LeadAutomationRule> LeadAutomationRules => Set<LeadAutomationRule>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

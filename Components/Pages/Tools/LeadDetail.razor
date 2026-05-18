@@ -1,0 +1,583 @@
+﻿@page "/tools/lead-optimizer/leads/{Id:int}"
+@attribute [Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Lead Details</PageTitle>
+<a class="btn btn-outline-secondary mb-3"
+       href="/tools/lead-optimizer/leads">
+    ← Zurück zur Lead Inbox
+</a>
+@if (isLoading)
+{
+    <p>Lade Lead...</p>
+}
+else if (lead == null)
+{
+    <div class="alert alert-danger">
+        Lead nicht gefunden.
+    </div>
+}
+else
+{
+    <div class="page-header mb-4">
+        <h1>@lead.CustomerName</h1>
+
+        <p>
+            @lead.CustomerEmail
+            @if (!string.IsNullOrWhiteSpace(lead.CustomerPhone))
+            {
+                <span> | @lead.CustomerPhone</span>
+            }
+        </p>
+    </div>
+
+    <div class="row">
+
+        <div class="col-lg-8">
+
+            <div class="card p-4 mb-4">
+
+                <h3>Fahrzeuginteresse</h3>
+
+                <table class="table">
+                    <tr>
+                        <td>Fahrzeug</td>
+                        <td>@lead.VehicleTitle</td>
+                    </tr>
+
+                    <tr>
+                        <td>Quelle</td>
+                        <td>@lead.SourceType</td>
+                    </tr>
+
+                    <tr>
+                        <td>Status</td>
+                        <td>@lead.Status</td>
+                    </tr>
+
+                    <tr>
+                        <td>Erstellt</td>
+                        <td>@lead.CreatedAt.ToLocalTime()</td>
+                    </tr>
+                </table>
+
+            </div>
+
+            <div class="card p-4 mb-4">
+
+                <h3>Original Nachricht</h3>
+
+                @if (string.IsNullOrWhiteSpace(lead.OriginalMessage))
+                {
+                    <p>Keine Nachricht vorhanden.</p>
+                }
+                else
+                {
+                    <div class="alert alert-light">
+                        @lead.OriginalMessage
+                    </div>
+                }
+
+            </div>
+            <div class="card p-4 mb-4">
+
+                <h3>Qualifizierungsdaten</h3>
+
+                <table class="table">
+                    <tr>
+                        <td>Telefon</td>
+                        <td>@lead.CustomerPhone</td>
+                    </tr>
+                    <tr>
+                        <td>Kaufzeitpunkt</td>
+                        <td>@lead.PurchaseTimeframe</td>
+                    </tr>
+                    <tr>
+                        <td>Zahlungsart</td>
+                        <td>@lead.PaymentType</td>
+                    </tr>
+                    <tr>
+                        <td>Inzahlungnahme</td>
+                        <td>@(lead.WantsTradeIn ? "Ja" : "Nein")</td>
+                    </tr>
+                    <tr>
+                        <td>Inzahlungnahme-Fahrzeug</td>
+                        <td>@lead.TradeInVehicle</td>
+                    </tr>
+                    <tr>
+                        <td>Kontaktwunsch</td>
+                        <td>@lead.ContactPreference</td>
+                    </tr>
+                    <tr>
+                        <td>Notizen</td>
+                        <td>@lead.QualificationNotes</td>
+                    </tr>
+                    <tr>
+                        <td>DSGVO bestätigt</td>
+                        <td>
+                            @(lead.PrivacyAccepted
+                                ? $"Ja, am {lead.PrivacyAcceptedAt?.ToLocalTime():dd.MM.yyyy HH:mm}"
+                                : "Nein")
+                        </td>
+                    </tr>
+                </table>
+
+            </div>
+            <div class="card p-4 mb-4">
+
+                <h3>Lead Historie</h3>
+
+                @if (!events.Any())
+                {
+                    <p>Keine Ereignisse vorhanden.</p>
+                }
+                else
+                {
+                    <div class="timeline">
+
+                        @foreach (var item in events)
+                        {
+                            <div class="timeline-item mb-4">
+
+                                <div style="font-weight:bold;">
+                                    @item.Title
+                                </div>
+
+                                <div class="text-muted mb-1">
+                                    @item.CreatedAt.ToLocalTime()
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(item.Description))
+                                {
+                                    <div>
+                                        @item.Description
+                                    </div>
+                                }
+
+                            </div>
+                        }
+
+                    </div>
+                }
+
+            </div>
+            <div class="card p-4 mb-4">
+
+                <h3>Aufgaben</h3>
+                <div class="border rounded p-3 mb-4">
+
+                    <h5>Neue Aufgabe</h5>
+
+                    <div class="mb-3">
+                        <label>Titel</label>
+                        <input class="form-control"
+                               @bind="newTask.Title" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label>Beschreibung</label>
+                        <textarea class="form-control"
+                                  rows="3"
+                                  @bind="newTask.Description"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Priorität</label>
+                            <select class="form-select"
+                                    @bind="newTask.Priority">
+                                <option value="High">Hoch</option>
+                                <option value="Medium">Mittel</option>
+                                <option value="Low">Niedrig</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label>Fällig am</label>
+                            <input class="form-control"
+                                   type="datetime-local"
+                                   @bind="newTask.DueAt" />
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary"
+                            @onclick="CreateTask">
+                        Aufgabe speichern
+                    </button>
+
+                    @if (!string.IsNullOrWhiteSpace(taskMessage))
+                    {
+                        <div class="alert alert-info mt-3">
+                            @taskMessage
+                        </div>
+                    }
+
+                </div>
+
+                @if (!tasks.Any())
+                {
+                    <p>Keine Aufgaben vorhanden.</p>
+                }
+                else
+                {
+                    
+                    <table class="table">
+
+                        <thead>
+                            <tr>
+                                <th>Aufgabe</th>
+                                <th>Priorität</th>
+                                <th>Fällig</th>
+                                <th>Status</th>
+                                <th>Aktion</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            @foreach (var task in tasks)
+                            {
+                                <tr>
+
+                                    <td>@task.Title</td>
+
+                                    <td>
+
+                                        @if (task.Priority == "High")
+                                        {
+                                            <span class="badge bg-danger">
+                                                Hoch
+                                            </span>
+                                        }
+                                        else if (task.Priority == "Medium")
+                                        {
+                                            <span class="badge bg-warning text-dark">
+                                                Mittel
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">
+                                                Niedrig
+                                            </span>
+                                        }
+
+                                    </td>
+
+                                    <td>
+                                        @task.DueAt.ToLocalTime()
+                                    </td>
+
+                                    <td>
+
+                                        @if (task.IsCompleted)
+                                        {
+                                            <span class="badge bg-success">
+                                                Erledigt
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-primary">
+                                                Offen
+                                            </span>
+                                        }
+
+                                    </td>
+                                    <td>
+
+                                        @if (!task.IsCompleted)
+                                        {
+                                            <button class="btn btn-sm btn-success"
+                                                    @onclick="() => CompleteTask(task.Id)">
+                                                Erledigt
+                                            </button>
+                                        }
+
+                                    </td>
+
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+                }
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-4">
+
+            <div class="card p-4 mb-4">
+
+                <h3>Lead Score</h3>
+
+                <div style="font-size:40px; font-weight:bold;">
+                    @lead.Score
+                </div>
+
+                <div>
+                    @lead.ScoreLabel
+                </div>
+
+            </div>
+            <div class="card p-4 mb-4">
+
+                <h3>Status ändern</h3>
+
+                <select class="form-select mb-3"
+                        @bind="lead.Status">
+
+                    @foreach (var status in availableStatuses)
+                    {
+                        <option value="@status">
+                            @status
+                        </option>
+                    }
+
+                </select>
+
+                <button class="btn btn-primary"
+                        @onclick="SaveStatus">
+                    Status speichern
+                </button>
+
+            </div>
+            <div class="card p-4 mb-4">
+
+                <h3>Qualifizierungslink</h3>
+
+                <p>
+                    Diesen Link erhält der Interessent zur Datenergänzung.
+                </p>
+
+                <div class="mb-3">
+
+                    <input class="form-control"
+                           readonly
+                           value="@qualificationUrl" />
+
+                </div>
+
+                <button class="btn btn-outline-primary"
+                        @onclick="CopyQualificationLink">
+                    Link kopieren
+                </button>
+
+            </div>
+
+        </div>
+
+        
+
+    </div>
+}
+
+@code {
+
+    [Parameter]
+    public int Id { get; set; }
+
+    private LeadOptimizerLead? lead;
+
+    private bool isLoading = true;
+    private string qualificationUrl = "";
+    private List<LeadOptimizerLeadEvent> events = new();
+    private List<LeadOptimizerTask> tasks = new();
+
+    private async Task CopyQualificationLink()
+    {
+        await JS.InvokeVoidAsync(
+            "navigator.clipboard.writeText",
+            qualificationUrl);
+    }
+
+    private async Task SaveStatus()
+    {
+        if (lead == null)
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbLead = await db.LeadOptimizerLeads
+            .FirstOrDefaultAsync(x => x.Id == lead.Id);
+
+        if (dbLead == null)
+        {
+            return;
+        }
+
+        dbLead.Status = lead.Status;
+        dbLead.UpdatedAt = DateTime.UtcNow;
+
+        db.LeadOptimizerLeadEvents.Add(
+            new LeadOptimizerLeadEvent
+            {
+                LeadId = dbLead.Id,
+                EventType = "status_changed",
+                Title = "Lead Status geändert",
+                Description = $"Neuer Status: {dbLead.Status}"
+            });
+
+        await db.SaveChangesAsync();
+    }
+
+    private LeadOptimizerTask newTask = new()
+    {
+        Priority = "Medium",
+        DueAt = DateTime.Now.AddDays(1)
+    };
+
+    private string taskMessage = "";
+
+    private async Task CreateTask()
+    {
+        if (lead == null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newTask.Title))
+        {
+            taskMessage = "Bitte einen Titel eingeben.";
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var task = new LeadOptimizerTask
+        {
+            LeadId = lead.Id,
+            Title = newTask.Title,
+            Description = newTask.Description,
+            Priority = newTask.Priority,
+            DueAt = newTask.DueAt.ToUniversalTime(),
+            IsCompleted = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        db.LeadOptimizerTasks.Add(task);
+
+        db.LeadOptimizerLeadEvents.Add(new LeadOptimizerLeadEvent
+        {
+            LeadId = lead.Id,
+            EventType = "task_created",
+            Title = "Aufgabe erstellt",
+            Description = task.Title
+        });
+
+        await db.SaveChangesAsync();
+
+        tasks = await db.LeadOptimizerTasks
+            .AsNoTracking()
+            .Where(x => x.LeadId == lead.Id)
+            .OrderBy(x => x.IsCompleted)
+            .ThenBy(x => x.DueAt)
+            .ToListAsync();
+
+        newTask = new LeadOptimizerTask
+        {
+            Priority = "Medium",
+            DueAt = DateTime.Now.AddDays(1)
+        };
+
+        taskMessage = "Aufgabe wurde gespeichert.";
+    }
+
+    private async Task CompleteTask(int taskId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbTask = await db.LeadOptimizerTasks
+            .FirstOrDefaultAsync(x => x.Id == taskId);
+
+        if (dbTask == null)
+        {
+            return;
+        }
+
+        dbTask.IsCompleted = true;
+        dbTask.CompletedAt = DateTime.UtcNow;
+
+        db.LeadOptimizerLeadEvents.Add(new LeadOptimizerLeadEvent
+        {
+            LeadId = dbTask.LeadId,
+            EventType = "task_completed",
+            Title = "Aufgabe erledigt",
+            Description = dbTask.Title
+        });
+
+        await db.SaveChangesAsync();
+
+        tasks = await db.LeadOptimizerTasks
+            .AsNoTracking()
+            .Where(x => x.LeadId == Id)
+            .OrderBy(x => x.IsCompleted)
+            .ThenBy(x => x.DueAt)
+            .ToListAsync();
+    }
+    
+    private readonly List<string> availableStatuses =
+[
+    "New",
+    "email_sent",
+    "Qualified",
+    "Contacted",
+    "Appointment",
+    "OfferSent",
+    "Negotiation",
+    "Won",
+    "Lost"
+];
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        lead = await db.LeadOptimizerLeads
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == Id);
+
+        isLoading = false;
+        if (lead != null)
+        {
+            qualificationUrl =
+                $"{Navigation.BaseUri}lead/q/{lead.QualificationToken}";
+        }
+
+        events = await db.LeadOptimizerLeadEvents
+            .AsNoTracking()
+            .Where(x => x.LeadId == Id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        tasks = await db.LeadOptimizerTasks
+            .AsNoTracking()
+            .Where(x => x.LeadId == Id)
+            .OrderBy(x => x.IsCompleted)
+            .ThenBy(x => x.DueAt)
+            .ToListAsync();
+    }
+}

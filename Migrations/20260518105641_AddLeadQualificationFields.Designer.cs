@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ToolboxPortal.Data;
@@ -11,9 +12,11 @@ using ToolboxPortal.Data;
 namespace ToolboxPortal.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260518105641_AddLeadQualificationFields")]
+    partial class AddLeadQualificationFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -328,57 +331,6 @@ namespace ToolboxPortal.Migrations
                     b.ToTable("AiGenerations");
                 });
 
-            modelBuilder.Entity("ToolboxPortal.Models.LeadAutomationRule", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ActionType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("DueOffsetMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TaskDescription")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TaskPriority")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TaskTitle")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TriggerEvent")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("LeadAutomationRules");
-                });
-
             modelBuilder.Entity("ToolboxPortal.Models.LeadCampaign", b =>
                 {
                     b.Property<int>("Id")
@@ -476,12 +428,6 @@ namespace ToolboxPortal.Migrations
                     b.Property<string>("PaymentType")
                         .HasColumnType("text");
 
-                    b.Property<bool>("PrivacyAccepted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("PrivacyAcceptedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("PurchaseTimeframe")
                         .HasColumnType("text");
 
@@ -563,82 +509,6 @@ namespace ToolboxPortal.Migrations
                     b.HasIndex("LeadSourceId");
 
                     b.ToTable("LeadOptimizerLeads");
-                });
-
-            modelBuilder.Entity("ToolboxPortal.Models.LeadOptimizerLeadEvent", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("LeadId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LeadId");
-
-                    b.ToTable("LeadOptimizerLeadEvents");
-                });
-
-            modelBuilder.Entity("ToolboxPortal.Models.LeadOptimizerTask", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AssignedUserId")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("DueAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsCompleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("LeadId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Priority")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LeadId");
-
-                    b.ToTable("LeadOptimizerTasks");
                 });
 
             modelBuilder.Entity("ToolboxPortal.Models.LeadSource", b =>
@@ -1108,28 +978,6 @@ namespace ToolboxPortal.Migrations
                     b.Navigation("LeadSource");
                 });
 
-            modelBuilder.Entity("ToolboxPortal.Models.LeadOptimizerLeadEvent", b =>
-                {
-                    b.HasOne("ToolboxPortal.Models.LeadOptimizerLead", "Lead")
-                        .WithMany("Events")
-                        .HasForeignKey("LeadId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Lead");
-                });
-
-            modelBuilder.Entity("ToolboxPortal.Models.LeadOptimizerTask", b =>
-                {
-                    b.HasOne("ToolboxPortal.Models.LeadOptimizerLead", "Lead")
-                        .WithMany("Tasks")
-                        .HasForeignKey("LeadId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Lead");
-                });
-
             modelBuilder.Entity("ToolboxPortal.Models.ThgMailLog", b =>
                 {
                     b.HasOne("ToolboxPortal.Models.ThgCustomer", "Customer")
@@ -1144,13 +992,6 @@ namespace ToolboxPortal.Migrations
             modelBuilder.Entity("ToolboxPortal.Models.AiChatSession", b =>
                 {
                     b.Navigation("Messages");
-                });
-
-            modelBuilder.Entity("ToolboxPortal.Models.LeadOptimizerLead", b =>
-                {
-                    b.Navigation("Events");
-
-                    b.Navigation("Tasks");
                 });
 #pragma warning restore 612, 618
         }

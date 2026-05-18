@@ -1,0 +1,146 @@
+﻿@page "/tools/lead-optimizer/tasks"
+@attribute [Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Lead Aufgaben</PageTitle>
+
+<h1 class="mb-4">
+    Aufgaben
+</h1>
+<a class="btn btn-outline-secondary mb-3"
+       href="/tools/lead-optimizer">
+    ← Zurück zur Übersicht
+</a>
+@if (isLoading)
+{
+    <p>Lade Aufgaben...</p>
+}
+else if (!tasks.Any())
+{
+    <div class="alert alert-info">
+        Keine offenen Aufgaben vorhanden.
+    </div>
+}
+else
+{
+    <div class="card p-4">
+
+        <table class="table">
+
+            <thead>
+                <tr>
+                    <th>Aufgabe</th>
+                    <th>Lead</th>
+                    <th>Priorität</th>
+                    <th>Fällig</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                @foreach (var task in tasks)
+                {
+                    <tr>
+
+                        <td>
+                            @task.Title
+                        </td>
+
+                        <td>
+                            @task.Lead?.CustomerName
+                        </td>
+
+                        <td>
+
+                            @if (task.Priority == "High")
+                            {
+                                <span class="badge bg-danger">
+                                    Hoch
+                                </span>
+                            }
+                            else if (task.Priority == "Medium")
+                            {
+                                <span class="badge bg-warning text-dark">
+                                    Mittel
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">
+                                    Niedrig
+                                </span>
+                            }
+
+                        </td>
+
+                        <td>
+                            @task.DueAt.ToLocalTime()
+                        </td>
+
+                        <td>
+
+                            @if (task.IsCompleted)
+                            {
+                                <span class="badge bg-success">
+                                    Erledigt
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-primary">
+                                    Offen
+                                </span>
+                            }
+
+                        </td>
+
+                        <td>
+
+                            <a class="btn btn-sm btn-outline-primary"
+                                   href="/tools/lead-optimizer/leads/@task.LeadId">
+                                Öffnen
+                            </a>
+
+                        </td>
+
+                    </tr>
+                }
+
+            </tbody>
+
+        </table>
+
+    </div>
+}
+
+@code {
+
+    private List<LeadOptimizerTask> tasks = new();
+
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        tasks = await db.LeadOptimizerTasks
+            .AsNoTracking()
+            .Include(x => x.Lead)
+            .OrderBy(x => x.IsCompleted)
+            .ThenBy(x => x.DueAt)
+            .ToListAsync();
+
+        isLoading = false;
+    }
+}

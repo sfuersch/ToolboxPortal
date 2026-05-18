@@ -1,0 +1,71 @@
+﻿@using Microsoft.AspNetCore.Authorization
+
+@page "/tools/lead-optimizer"
+@attribute [Authorize]
+
+<PageTitle>Lead Optimierung</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Lead Optimierung</h1>
+        <p class="page-subtitle">
+            Leads erfassen, qualifizieren und automatisieren.
+        </p>
+    </div>
+</div>
+
+<div class="tool-grid">
+    <div class="tool-card"
+        <div class="tool-icon">
+            📋
+        </div>
+
+        <h3>Aufgaben</h3>
+
+        <p>
+            Offene Wiedervorlagen und Verkäufer-Aufgaben.
+        </p>
+
+        <a class="btn btn-primary" href="/tools/lead-optimizer/tasks">
+            Öffnen
+            </a>
+    </div>
+
+    <div class="tool-card">
+        <div class="tool-icon">📥</div>
+
+        <h3>Lead Inbox</h3>
+
+        <p>
+            Eingehende Leads aus allen Quellen.
+        </p>
+
+        <a class="btn btn-primary" href="/tools/lead-optimizer/leads">
+            Öffnen
+        </a>
+    </div>
+
+    <div class="tool-card">
+        <div class="tool-icon">🧠</div>
+
+        <h3>Lead Scoring</h3>
+
+        <p>
+            Kaufwahrscheinlichkeit und Priorisierung.
+        </p>
+    </div>
+
+    <div class="tool-card">
+        <div class="tool-icon">⚡</div>
+
+        <h3>Automationen</h3>
+
+        <p>
+            Follow-ups, Mailings und CRM-Übergaben.
+        </p>
+        <a class="btn btn-primary" href="/tools/lead-optimizer/automation">
+            Öffnen
+        </a>
+    </div>
+
+</div>

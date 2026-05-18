@@ -1,0 +1,634 @@
+﻿@page "/tools/lead-optimizer/automation"
+@attribute [Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+@using Microsoft.AspNetCore.Identity
+
+@inject IServiceScopeFactory ScopeFactory
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Lead Automationen</PageTitle>
+
+<h1>Lead Automationen</h1>
+<a class="btn btn-outline-secondary mb-3"
+       href="/tools/lead-optimizer">
+    ← Zurück zur Übersicht
+</a><br />
+
+<div class="tool-tabs">
+    <button class="tool-tab @(activeTab == "task-rules" ? "active" : "")"
+            @onclick='() => activeTab = "task-rules"'>
+
+        Aufgabenregeln
+
+    </button>
+
+    <button class="tool-tab">
+        Mail-Automationen
+    </button>
+
+    <button class="tool-tab @(activeTab == "imports" ? "active" : "")"
+            @onclick='() => activeTab = "imports"'>
+
+        Importe
+
+    </button>
+
+    <button class="tool-tab">
+        Exporte / CRM
+    </button>
+
+    <button class="tool-tab">
+        Scoring
+    </button>
+
+    <button class="tool-tab">
+        Logs
+    </button>
+</div>
+@if (activeTab == "task-rules")
+
+{
+
+<div class="card p-4 mt-4">
+
+    <h3 class="mb-4">
+        Aufgabenregeln
+    </h3>
+
+    <div class="border rounded p-3 mb-4">
+
+        <div class="row">
+
+            <div class="col-md-4 mb-3">
+                <label>Name</label>
+
+                <input class="form-control"
+                       @bind="newRule.Name" />
+            </div>
+
+            <div class="col-md-3 mb-3">
+                <label>Trigger</label>
+
+                <select class="form-select"
+                        @bind="newRule.TriggerEvent">
+
+                    <option>LeadCreated</option>
+                    <option>LeadQualified</option>
+                    <option>StatusChanged</option>
+                    <option>TaskCompleted</option>
+
+                </select>
+            </div>
+
+            <div class="col-md-3 mb-3">
+                <label>Priorität</label>
+
+                <select class="form-select"
+                        @bind="newRule.TaskPriority">
+
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
+
+                </select>
+            </div>
+
+            <div class="col-md-2 mb-3">
+                <label>Delay Min.</label>
+
+                <input type="number"
+                       class="form-control"
+                       @bind="newRule.DueOffsetMinutes" />
+            </div>
+
+        </div>
+
+        <div class="mb-3">
+            <label>Aufgabe</label>
+
+            <input class="form-control"
+                   @bind="newRule.TaskTitle" />
+        </div>
+
+        <div class="mb-3">
+            <label>Beschreibung</label>
+
+            <textarea class="form-control"
+                      rows="3"
+                      @bind="newRule.TaskDescription"></textarea>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary"
+                    @onclick="SaveRule">
+                @(editingRuleId == null ? "Regel speichern" : "Änderungen speichern")
+            </button>
+
+            @if (editingRuleId != null)
+            {
+                <button class="btn btn-outline-secondary"
+                        @onclick="CancelEdit">
+                    Abbrechen
+                </button>
+            }
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(ruleMessage))
+        {
+            <div class="alert alert-info mt-3">
+                @ruleMessage
+            </div>
+        }
+
+    </div>
+
+    @if (!rules.Any())
+    {
+        <p>
+            Noch keine Regeln vorhanden.
+        </p>
+    }
+    else
+    {
+        <table class="table">
+
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Trigger</th>
+                    <th>Aufgabe</th>
+                    <th>Priorität</th>
+                    <th>Delay</th>
+                    <th>Status</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                @foreach (var rule in rules)
+                {
+                    <tr>
+
+                        <td>@rule.Name</td>
+
+                        <td>@rule.TriggerEvent</td>
+
+                        <td>@rule.TaskTitle</td>
+
+                        <td>@rule.TaskPriority</td>
+
+                        <td>@rule.DueOffsetMinutes Min.</td>
+
+                        <td>
+
+                            @if (rule.IsActive)
+                            {
+                                <span class="badge bg-success">
+                                    Aktiv
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">
+                                    Inaktiv
+                                </span>
+                            }
+
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button class="btn btn-sm btn-outline-primary"
+                                        @onclick="() => EditRule(rule.Id)">
+                                    Bearbeiten
+                                </button>
+
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => ToggleRule(rule.Id)">
+                                    @(rule.IsActive ? "Deaktivieren" : "Aktivieren")
+                                </button>
+
+                                @if (!rule.IsActive)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => DeleteRule(rule.Id)">
+                                        Löschen
+                                    </button>
+                                }
+                            </div>
+                        </td>
+
+                    </tr>
+                }
+
+            </tbody>
+
+        </table>
+    }
+
+</div>
+}
+
+@if (activeTab == "imports")
+
+{
+<div class="card p-4 mt-4">
+
+    <h3 class="mb-4">
+        Importe / Leadquellen
+    </h3>
+
+    <div class="border rounded p-3 mb-4">
+
+        <div class="row">
+
+            <div class="col-md-6 mb-3">
+                <label>Name der Quelle</label>
+
+                <input class="form-control"
+                       placeholder="z. B. Website Formular, Facebook Ads, mobile.de"
+                       @bind="newSource.Name" />
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label>Quelltyp</label>
+
+                <select class="form-select"
+                        @bind="newSource.SourceType">
+
+                    <option value="ApiWebhook">API / Webhook</option>
+                    <option value="WebForm">Website Formular</option>
+                    <option value="Facebook">Facebook / Meta</option>
+                    <option value="Instagram">Instagram</option>
+                    <option value="GoogleAds">Google Ads</option>
+                    <option value="MobileDe">mobile.de</option>
+                    <option value="Csv">CSV Import</option>
+
+                </select>
+            </div>
+
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="SaveSource">
+            Leadquelle anlegen
+        </button>
+
+        @if (!string.IsNullOrWhiteSpace(sourceMessage))
+        {
+            <div class="alert alert-info mt-3">
+                @sourceMessage
+            </div>
+        }
+
+    </div>
+
+    @if (!sources.Any())
+    {
+        <p>Noch keine Leadquellen vorhanden.</p>
+    }
+    else
+    {
+        <table class="table">
+
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Typ</th>
+                    <th>API-Key</th>
+                    <th>Status</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var source in sources)
+                {
+                    <tr>
+                        <td>@source.Name</td>
+
+                        <td>@source.SourceType</td>
+
+                        <td>
+                            <code>@source.ApiKey</code>
+                        </td>
+
+                        <td>
+                            @if (source.IsActive)
+                            {
+                                <span class="badge bg-success">Aktiv</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Inaktiv</span>
+                            }
+                        </td>
+
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => ToggleSource(source.Id)">
+                                @(source.IsActive ? "Deaktivieren" : "Aktivieren")
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+
+        </table>
+    }
+
+</div>
+}
+
+@code {
+
+    private List<LeadAutomationRule> rules = new();
+    private int? editingRuleId;
+    private string ruleMessage = "";
+    private LeadAutomationRule newRule = new()
+    {
+        TriggerEvent = "LeadQualified",
+        TaskPriority = "High",
+        DueOffsetMinutes = 15
+    };
+    private List<LeadSource> sources = new();
+    private string activeTab = "task-rules";
+
+    private LeadSource newSource = new()
+    {
+        SourceType = "ApiWebhook",
+        IsActive = true
+    };
+
+    private string sourceMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRules();
+        await LoadSources();
+    }
+
+    private async Task LoadRules()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        rules = await db.LeadAutomationRules
+            .AsNoTracking()
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private async Task ToggleRule(int ruleId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbRule = await db.LeadAutomationRules
+            .FirstOrDefaultAsync(x => x.Id == ruleId);
+
+        if (dbRule == null)
+        {
+            return;
+        }
+
+        dbRule.IsActive = !dbRule.IsActive;
+
+        dbRule.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync();
+
+        await LoadRules();
+    }
+
+    private async Task SaveRule()
+    {
+        if (string.IsNullOrWhiteSpace(newRule.Name))
+        {
+            ruleMessage = "Bitte einen Namen für die Regel eingeben.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newRule.TaskTitle))
+        {
+            ruleMessage = "Bitte einen Aufgabentitel eingeben.";
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        if (editingRuleId == null)
+        {
+            newRule.CreatedAt = DateTime.UtcNow;
+            newRule.UpdatedAt = DateTime.UtcNow;
+            newRule.ActionType = "CreateTask";
+
+            db.LeadAutomationRules.Add(newRule);
+
+            ruleMessage = "Regel wurde angelegt.";
+        }
+        else
+        {
+            var dbRule = await db.LeadAutomationRules
+                .FirstOrDefaultAsync(x => x.Id == editingRuleId.Value);
+
+            if (dbRule == null)
+            {
+                ruleMessage = "Regel wurde nicht gefunden.";
+                return;
+            }
+
+            dbRule.Name = newRule.Name;
+            dbRule.TriggerEvent = newRule.TriggerEvent;
+            dbRule.ActionType = "CreateTask";
+            dbRule.TaskTitle = newRule.TaskTitle;
+            dbRule.TaskDescription = newRule.TaskDescription;
+            dbRule.TaskPriority = newRule.TaskPriority;
+            dbRule.DueOffsetMinutes = newRule.DueOffsetMinutes;
+            dbRule.UpdatedAt = DateTime.UtcNow;
+
+            ruleMessage = "Regel wurde aktualisiert.";
+        }
+
+        await db.SaveChangesAsync();
+
+        ResetRuleForm();
+
+        await LoadRules();
+    }
+
+    private async Task EditRule(int ruleId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbRule = await db.LeadAutomationRules
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == ruleId);
+
+        if (dbRule == null)
+        {
+            return;
+        }
+
+        editingRuleId = dbRule.Id;
+
+        newRule = new LeadAutomationRule
+        {
+            Name = dbRule.Name,
+            TriggerEvent = dbRule.TriggerEvent,
+            ActionType = dbRule.ActionType,
+            TaskTitle = dbRule.TaskTitle,
+            TaskDescription = dbRule.TaskDescription,
+            TaskPriority = dbRule.TaskPriority,
+            DueOffsetMinutes = dbRule.DueOffsetMinutes,
+            IsActive = dbRule.IsActive
+        };
+
+        ruleMessage = "Regel wird bearbeitet.";
+    }
+
+    private void CancelEdit()
+    {
+        ResetRuleForm();
+        ruleMessage = "";
+    }
+
+    private void ResetRuleForm()
+    {
+        editingRuleId = null;
+
+        newRule = new LeadAutomationRule
+        {
+            TriggerEvent = "LeadQualified",
+            ActionType = "CreateTask",
+            TaskPriority = "High",
+            DueOffsetMinutes = 15,
+            IsActive = true
+        };
+    }
+
+    private async Task LoadSources()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        sources = await db.LeadSources
+            .AsNoTracking()
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private async Task SaveSource()
+    {
+        if (string.IsNullOrWhiteSpace(newSource.Name))
+        {
+            sourceMessage = "Bitte einen Namen für die Leadquelle eingeben.";
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        newSource.ApiKey = $"lead_{Guid.NewGuid():N}";
+        newSource.CreatedAt = DateTime.UtcNow;
+        newSource.IsActive = true;
+
+        var authState =
+    await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var user =
+            await UserManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            sourceMessage = "Benutzer nicht gefunden.";
+            return;
+        }
+
+        newSource.UserId = user.Id;
+
+        db.LeadSources.Add(newSource);
+
+        await db.SaveChangesAsync();
+
+        sourceMessage = "Leadquelle wurde angelegt.";
+
+        newSource = new LeadSource
+        {
+            SourceType = "ApiWebhook",
+            IsActive = true
+        };
+
+        await LoadSources();
+    }
+
+    private async Task ToggleSource(int sourceId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var source = await db.LeadSources
+            .FirstOrDefaultAsync(x => x.Id == sourceId);
+
+        if (source == null)
+        {
+            return;
+        }
+
+        source.IsActive = !source.IsActive;
+
+        await db.SaveChangesAsync();
+
+        await LoadSources();
+    }
+
+    private async Task DeleteRule(int ruleId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbRule = await db.LeadAutomationRules
+            .FirstOrDefaultAsync(x => x.Id == ruleId);
+
+        if (dbRule == null)
+        {
+            return;
+        }
+
+        if (dbRule.IsActive)
+        {
+            ruleMessage = "Aktive Regeln können nicht gelöscht werden. Bitte zuerst deaktivieren.";
+            return;
+        }
+
+        db.LeadAutomationRules.Remove(dbRule);
+
+        await db.SaveChangesAsync();
+
+        ruleMessage = "Regel wurde gelöscht.";
+
+        await LoadRules();
+    }
+}

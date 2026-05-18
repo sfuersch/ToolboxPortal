@@ -1,0 +1,284 @@
+﻿@page "/tools/lead-optimizer/leads"
+@attribute [Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+@using Microsoft.AspNetCore.Identity
+@using ToolboxPortal.Services.LeadOptimizer
+
+@inject LeadScoringService LeadScoringService
+@inject IServiceScopeFactory ScopeFactory
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthProvider
+
+<PageTitle>Lead Inbox</PageTitle>
+
+<h1>Lead Inbox</h1>
+<a class="btn btn-outline-secondary mb-3"
+       href="/tools/lead-optimizer">
+    ← Zurück zur Übersicht
+</a>
+<div class="mb-4">
+
+    <button class="btn btn-success"
+            @onclick="() => showCreateForm = !showCreateForm">
+        + Lead anlegen
+    </button>
+
+</div>
+
+@if (showCreateForm)
+{
+    <div class="card p-4 mb-4">
+
+        <h3>Neuen Lead anlegen</h3>
+
+        <div class="row">
+
+            <div class="col-md-6 mb-3">
+                <label>Name</label>
+
+                <input class="form-control"
+                       @bind="newLead.CustomerName" />
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label>E-Mail</label>
+
+                <input class="form-control"
+                       @bind="newLead.CustomerEmail" />
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label>Telefon</label>
+
+                <input class="form-control"
+                       @bind="newLead.CustomerPhone" />
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label>Fahrzeug</label>
+
+                <input class="form-control"
+                       @bind="newLead.VehicleTitle" />
+            </div>
+
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="CreateLead">
+            Lead speichern
+        </button>
+
+    </div>
+}
+
+@if (isLoading)
+{
+    <p>Lade Leads...</p>
+}
+else if (leads.Count == 0)
+{
+    <div class="alert alert-info">
+        Noch keine Leads vorhanden.
+    </div>
+}
+else
+{
+    <div class="card p-3 mb-4">
+
+        <input class="form-control"
+               placeholder="Suchen nach Name, E-Mail, Fahrzeug oder Telefon..."
+               @bind="searchTerm" />
+
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th>Name</th>
+                <th>Fahrzeug</th>
+                <th>Quelle</th>
+                <th>Score</th>
+                <th>Datum</th>
+                <th></th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var lead in FilteredLeads)
+            {
+                <tr>
+                    <td>
+
+                        @if (lead.Status == "New")
+                        {
+                            <span class="badge bg-secondary">
+                                Neu
+                            </span>
+                        }
+                        else if (lead.Status == "email_sent")
+                        {
+                            <span class="badge bg-primary">
+                                E-Mail gesendet
+                            </span>
+                        }
+                        else if (lead.Status == "Qualified")
+                        {
+                            <span class="badge bg-success">
+                                Qualifiziert
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-dark">
+                                @lead.Status
+                            </span>
+                        }
+
+                    </td>
+
+                    <td>
+                        <strong>@lead.CustomerName</strong><br />
+                        @lead.CustomerEmail
+                    </td>
+
+                    <td>
+                        @lead.VehicleTitle
+                    </td>
+
+                    <td>
+                        @lead.SourceType
+                    </td>
+
+                    <td>
+
+                        @if (lead.ScoreLabel == "HOT")
+                        {
+                            <span class="badge bg-danger">
+                                HOT
+                            </span>
+                        }
+                        else if (lead.ScoreLabel == "WARM")
+                        {
+                            <span class="badge bg-warning text-dark">
+                                WARM
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">
+                                COLD
+                            </span>
+                        }
+
+                    </td>
+
+                    <td>
+                        @lead.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                    </td>
+                    <td>
+                        <a class="btn btn-sm btn-primary"
+                               href="/tools/lead-optimizer/leads/@lead.Id">
+                            Öffnen
+                        </a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+
+    private List<LeadOptimizerLead> leads = new();
+
+
+    private bool isLoading = true;
+    private bool showCreateForm;
+    private string searchTerm = "";
+
+    private LeadOptimizerLead newLead = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+
+        var userId = UserManager.GetUserId(authState.User);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            isLoading = false;
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        leads = await db.LeadOptimizerLeads
+    .AsNoTracking()
+    .OrderByDescending(x => x.Score)
+    .ThenByDescending(x => x.CreatedAt)
+    .ToListAsync();
+
+        isLoading = false;
+    }
+
+    private IEnumerable<LeadOptimizerLead> FilteredLeads =>
+    leads.Where(x =>
+
+        string.IsNullOrWhiteSpace(searchTerm)
+
+        || (x.CustomerName?.Contains(searchTerm,
+            StringComparison.OrdinalIgnoreCase) ?? false)
+
+        || (x.CustomerEmail?.Contains(searchTerm,
+            StringComparison.OrdinalIgnoreCase) ?? false)
+
+        || (x.VehicleTitle?.Contains(searchTerm,
+            StringComparison.OrdinalIgnoreCase) ?? false)
+
+        || (x.CustomerPhone?.Contains(searchTerm,
+            StringComparison.OrdinalIgnoreCase) ?? false)
+    );
+
+    private async Task CreateLead()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+
+        var userId = UserManager.GetUserId(authState.User);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        newLead.UserId = userId;
+
+        newLead.SourceType = "Manual";
+
+        newLead.Status = "New";
+
+        LeadScoringService.CalculateScore(newLead);
+
+        newLead.CreatedAt = DateTime.UtcNow;
+
+        newLead.UpdatedAt = DateTime.UtcNow;
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        db.LeadOptimizerLeads.Add(newLead);
+
+        await db.SaveChangesAsync();
+
+        leads.Insert(0, newLead);
+
+        newLead = new LeadOptimizerLead();
+
+        showCreateForm = false;
+    }
+}

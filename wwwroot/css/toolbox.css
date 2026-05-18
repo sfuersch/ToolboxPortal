@@ -1167,3 +1167,13 @@ a {
         align-items: stretch;
     }
 }
+.public-page {
+    min-height: 100vh;
+    background: #f4f6f8;
+    padding: 2rem;
+}
+
+    .public-page .card {
+        max-width: 760px;
+        margin: 0 auto;
+    }

@@ -1,0 +1,238 @@
+﻿@page "/lead/q/{Token}"
+@layout PublicLayout
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+@using ToolboxPortal.Services.LeadOptimizer
+
+
+@inject LeadScoringService LeadScoringService
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+@inject LeadAutomationService LeadAutomationService
+
+<PageTitle>Lead Qualifizierung</PageTitle>
+
+@if (isLoading)
+{
+    <p>Lade...</p>
+}
+else if (lead == null)
+{
+    <div class="alert alert-danger">
+        Lead nicht gefunden.
+    </div>
+}
+else if (isCompleted)
+{
+    <div class="alert alert-success">
+        Vielen Dank! Ihre Angaben wurden erfolgreich übermittelt.
+    </div>
+}
+else
+{
+    <div class="container py-5" style="max-width:700px;">
+
+        <div class="card p-4">
+
+            <h1 class="mb-3">
+                Anfrage vervollständigen
+            </h1>
+
+            <p class="mb-4">
+                Bitte ergänzen Sie noch einige Informationen für Ihr persönliches Angebot.
+            </p>
+
+            <div class="mb-3">
+                <label>Telefonnummer</label>
+
+                <input class="form-control"
+                       @bind="lead.CustomerPhone" />
+            </div>
+
+            <div class="mb-3">
+                <label>Wann möchten Sie kaufen?</label>
+
+                <select class="form-select"
+                        @bind="lead.PurchaseTimeframe">
+                    <option value="">Bitte wählen</option>
+                    <option>Sofort</option>
+                    <option>1-3 Monate</option>
+                    <option>3-6 Monate</option>
+                    <option>Später</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label>Zahlungsart</label>
+
+                <select class="form-select"
+                        @bind="lead.PaymentType">
+                    <option value="">Bitte wählen</option>
+                    <option>Barkauf</option>
+                    <option>Finanzierung</option>
+                    <option>Leasing</option>
+                </select>
+            </div>
+
+            <div class="form-check mb-3">
+
+                <input type="checkbox"
+                       class="form-check-input"
+                       @bind="lead.WantsTradeIn" />
+
+                <label class="form-check-label">
+                    Fahrzeug in Zahlung geben
+                </label>
+
+            </div>
+
+            @if (lead.WantsTradeIn)
+            {
+                <div class="mb-3">
+                    <label>Inzahlungnahme Fahrzeug</label>
+
+                    <input class="form-control"
+                           @bind="lead.TradeInVehicle" />
+                </div>
+            }
+
+            <div class="mb-3">
+                <label>Bevorzugter Kontaktweg</label>
+
+                <select class="form-select"
+                        @bind="lead.ContactPreference">
+                    <option value="">Bitte wählen</option>
+                    <option>Telefon</option>
+                    <option>WhatsApp</option>
+                    <option>E-Mail</option>
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label>Weitere Informationen</label>
+
+                <textarea class="form-control"
+                          rows="4"
+                          @bind="lead.QualificationNotes"></textarea>
+            </div>
+            <div class="form-check mb-3">
+                <input type="checkbox"
+                       class="form-check-input"
+                       @bind="lead.PrivacyAccepted" />
+
+                <label class="form-check-label">
+                    Ich bin damit einverstanden, dass meine Angaben zur Bearbeitung meiner Anfrage gespeichert und verarbeitet werden.
+                </label>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(validationMessage))
+            {
+                <div class="alert alert-warning">
+                    @validationMessage
+                </div>
+            }
+            <button class="btn btn-primary"
+                    @onclick="SaveQualification">
+                Angaben senden
+            </button>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    [Parameter]
+    public string Token { get; set; } = "";
+
+    private LeadOptimizerLead? lead;
+    private string validationMessage = "";
+
+    private bool isLoading = true;
+
+    private bool isCompleted;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        lead = await db.LeadOptimizerLeads
+            .FirstOrDefaultAsync(x => x.QualificationToken == Token);
+
+        isLoading = false;
+    }
+
+    private async Task SaveQualification()
+    {
+        if (lead == null)
+        {
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(lead.CustomerPhone))
+        {
+            validationMessage = "Bitte geben Sie eine Telefonnummer an.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(lead.PurchaseTimeframe))
+        {
+            validationMessage = "Bitte wählen Sie einen Kaufzeitpunkt aus.";
+            return;
+        }
+
+        if (!lead.PrivacyAccepted)
+        {
+            validationMessage = "Bitte bestätigen Sie die Datenschutzhinweise.";
+            return;
+        }
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var dbLead = await db.LeadOptimizerLeads
+            .FirstOrDefaultAsync(x => x.Id == lead.Id);
+
+        if (dbLead == null)
+        {
+            return;
+        }
+
+        dbLead.CustomerPhone = lead.CustomerPhone;
+        dbLead.PurchaseTimeframe = lead.PurchaseTimeframe;
+        dbLead.PaymentType = lead.PaymentType;
+        dbLead.WantsTradeIn = lead.WantsTradeIn;
+        dbLead.TradeInVehicle = lead.TradeInVehicle;
+        dbLead.ContactPreference = lead.ContactPreference;
+        dbLead.QualificationNotes = lead.QualificationNotes;
+        dbLead.PrivacyAccepted = lead.PrivacyAccepted;
+        dbLead.PrivacyAcceptedAt = DateTime.UtcNow;
+
+        dbLead.Status = "Qualified";
+
+        dbLead.QualifiedAt = DateTime.UtcNow;
+        dbLead.UpdatedAt = DateTime.UtcNow;
+        LeadScoringService.CalculateScore(dbLead);
+
+        db.LeadOptimizerLeadEvents.Add(new LeadOptimizerLeadEvent
+        {
+            LeadId = dbLead.Id,
+            EventType = "qualification_completed",
+            Title = "Lead qualifiziert",
+            Description = "Interessent hat das Qualifizierungsformular ausgefüllt."
+        });
+
+        await db.SaveChangesAsync();
+
+        await LeadAutomationService.RunAsync(
+            "LeadQualified",
+            dbLead);
+
+        validationMessage = "";
+        isCompleted = true;
+    }
+}

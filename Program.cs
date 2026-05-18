@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 using ToolboxPortal.Components;
 using ToolboxPortal.Components.Account;
 using ToolboxPortal.Data;
 using ToolboxPortal.Services;
-using System.Text;
-using Microsoft.AspNetCore.DataProtection;
+using ToolboxPortal.Services.LeadOptimizer;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -61,7 +62,8 @@ builder.Services.AddHttpClient<OpenAiService>();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
-
+builder.Services.AddScoped<LeadScoringService>();
+builder.Services.AddScoped<LeadAutomationService>();
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = IdentityConstants.ApplicationScheme;
@@ -96,6 +98,7 @@ builder.Services.AddScoped<ThgCsvImportService>();
 builder.Services.AddScoped<ThgMailTemplateService>();
 builder.Services.AddScoped<ThgFollowUpService>();
 builder.Services.AddScoped<ThgScrapingService>();
+builder.Services.AddControllers();
 
 // Später aktivieren, wenn Livebetrieb stabil ist:
 // builder.Services.AddHostedService<ThgFollowUpBackgroundService>();
@@ -164,5 +167,7 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapAdditionalIdentityEndpoints();
+
+app.MapControllers();
 
 app.Run();

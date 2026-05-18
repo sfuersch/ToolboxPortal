@@ -5,9 +5,10 @@
 @using ToolboxPortal.Data
 @using ToolboxPortal.Models
 @using Microsoft.AspNetCore.Identity
+@using System.Security.Claims
 
 @inject IServiceScopeFactory ScopeFactory
-@inject UserManager<ApplicationUser> UserManager
+
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Lead Automationen</PageTitle>
@@ -502,8 +503,22 @@
         await LoadEmailSettings();
     }
 
+    private async Task<string?> GetCurrentUserIdAsync()
+    {
+        var authState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        return authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
     private async Task LoadRules()
     {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
         using var scope = ScopeFactory.CreateScope();
 
         var db = scope.ServiceProvider
@@ -511,6 +526,7 @@
 
         rules = await db.LeadAutomationRules
             .AsNoTracking()
+            .Where(x => x.UserId == userId)
             .OrderBy(x => x.Name)
             .ToListAsync();
     }
@@ -559,10 +575,22 @@
         var db = scope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
 
+        var authState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
         if (editingRuleId == null)
         {
+            newRule.UserId = userId;
             newRule.CreatedAt = DateTime.UtcNow;
             newRule.UpdatedAt = DateTime.UtcNow;
+            newRule.IsActive = true;
 
             db.LeadAutomationRules.Add(newRule);
 
@@ -571,7 +599,9 @@
         else
         {
             var dbRule = await db.LeadAutomationRules
-                .FirstOrDefaultAsync(x => x.Id == editingRuleId.Value);
+                .FirstOrDefaultAsync(x =>
+                    x.Id == editingRuleId.Value &&
+                    x.UserId == userId);
 
             if (dbRule == null)
             {
@@ -605,9 +635,21 @@
         var db = scope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
 
+        var authState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
         var dbRule = await db.LeadAutomationRules
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == ruleId);
+            .FirstOrDefaultAsync(x =>
+                x.Id == ruleId &&
+                x.UserId == userId);
 
         if (dbRule == null)
         {
@@ -684,16 +726,14 @@
         var authState =
     await AuthenticationStateProvider.GetAuthenticationStateAsync();
 
-        var user =
-            await UserManager.GetUserAsync(authState.User);
+        var userId = await GetCurrentUserIdAsync();
 
-        if (user == null)
+        if (string.IsNullOrWhiteSpace(userId))
         {
-            sourceMessage = "Benutzer nicht gefunden.";
             return;
         }
 
-        newSource.UserId = user.Id;
+        newSource.UserId = userId;
 
         db.LeadSources.Add(newSource);
 
@@ -720,19 +760,18 @@
         var authState =
             await AuthenticationStateProvider.GetAuthenticationStateAsync();
 
-        var user =
-            await UserManager.GetUserAsync(authState.User);
+        var userId = await GetCurrentUserIdAsync();
 
-        if (user == null)
+        if (string.IsNullOrWhiteSpace(userId))
         {
             return;
         }
 
         emailSettings = await db.LeadEmailSettings
-            .FirstOrDefaultAsync(x => x.UserId == user.Id)
+            .FirstOrDefaultAsync(x => x.UserId == userId)
             ?? new LeadEmailSettings
             {
-                UserId = user.Id,
+                UserId = userId,
                 SmtpPort = 587,
                 UseSsl = true
             };
@@ -748,21 +787,19 @@
         var authState =
             await AuthenticationStateProvider.GetAuthenticationStateAsync();
 
-        var user =
-            await UserManager.GetUserAsync(authState.User);
+        var userId = await GetCurrentUserIdAsync();
 
-        if (user == null)
+        if (string.IsNullOrWhiteSpace(userId))
         {
-            emailMessage = "Benutzer nicht gefunden.";
             return;
         }
 
         var existing = await db.LeadEmailSettings
-            .FirstOrDefaultAsync(x => x.UserId == user.Id);
+            .FirstOrDefaultAsync(x => x.UserId == userId);
 
         if (existing == null)
         {
-            emailSettings.UserId = user.Id;
+            emailSettings.UserId = userId;
             emailSettings.CreatedAt = DateTime.UtcNow;
             emailSettings.UpdatedAt = DateTime.UtcNow;
 
@@ -808,32 +845,46 @@
     }
 
     private async Task DeleteRule(int ruleId)
+{
+    using var scope = ScopeFactory.CreateScope();
+
+    var db = scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    var authState =
+        await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+    var dbRule = await db.LeadAutomationRules
+        .FirstOrDefaultAsync(x =>
+            x.Id == ruleId &&
+            x.UserId == userId);
+
+    if (dbRule == null)
     {
-        using var scope = ScopeFactory.CreateScope();
-
-        var db = scope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>();
-
-        var dbRule = await db.LeadAutomationRules
-            .FirstOrDefaultAsync(x => x.Id == ruleId);
-
-        if (dbRule == null)
-        {
-            return;
-        }
-
-        if (dbRule.IsActive)
-        {
-            ruleMessage = "Aktive Regeln können nicht gelöscht werden. Bitte zuerst deaktivieren.";
-            return;
-        }
-
-        db.LeadAutomationRules.Remove(dbRule);
-
-        await db.SaveChangesAsync();
-
-        ruleMessage = "Regel wurde gelöscht.";
-
-        await LoadRules();
+        return;
     }
+
+    if (dbRule.IsActive)
+    {
+        ruleMessage =
+            "Aktive Regeln können nicht gelöscht werden. Bitte zuerst deaktivieren.";
+
+        return;
+    }
+
+    db.LeadAutomationRules.Remove(dbRule);
+
+    await db.SaveChangesAsync();
+
+    ruleMessage = "Regel wurde gelöscht.";
+
+    await LoadRules();
+}
 }

@@ -64,6 +64,7 @@ builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddScoped<LeadScoringService>();
 builder.Services.AddScoped<LeadAutomationService>();
+builder.Services.AddScoped<LeadEmailService>();
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = IdentityConstants.ApplicationScheme;

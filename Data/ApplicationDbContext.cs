@@ -38,6 +38,8 @@ namespace ToolboxPortal.Data
 
         public DbSet<LeadAutomationRule> LeadAutomationRules => Set<LeadAutomationRule>();
 
+        public DbSet<LeadEmailSettings> LeadEmailSettings => Set<LeadEmailSettings>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

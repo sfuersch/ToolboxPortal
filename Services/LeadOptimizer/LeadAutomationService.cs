@@ -7,11 +7,14 @@ namespace ToolboxPortal.Services.LeadOptimizer;
 public class LeadAutomationService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly LeadEmailService _leadEmailService;
 
     public LeadAutomationService(
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        LeadEmailService leadEmailService)
     {
         _scopeFactory = scopeFactory;
+        _leadEmailService = leadEmailService;
     }
 
     public async Task RunAsync(
@@ -37,31 +40,41 @@ public class LeadAutomationService
                     new LeadOptimizerTask
                     {
                         LeadId = lead.Id,
-
                         Title = rule.TaskTitle ?? "Aufgabe",
-
                         Description = rule.TaskDescription,
-
                         Priority = rule.TaskPriority,
-
-                        DueAt = DateTime.UtcNow
-                            .AddMinutes(rule.DueOffsetMinutes),
-
+                        DueAt = DateTime.UtcNow.AddMinutes(rule.DueOffsetMinutes),
                         CreatedAt = DateTime.UtcNow,
-
                         IsCompleted = false
                     });
+            }
+
+            if (rule.ActionType == "SendQualificationMail")
+            {
+                var qualificationUrl =
+                    $"https://toolbox.promotekk.com/lead/q/{lead.QualificationToken}";
+
+                await _leadEmailService.SendQualificationEmailAsync(
+                    lead,
+                    qualificationUrl);
+
+                var dbLead = await db.LeadOptimizerLeads
+                    .FirstOrDefaultAsync(x => x.Id == lead.Id);
+
+                if (dbLead != null)
+                {
+                    dbLead.QualificationEmailSentAt = DateTime.UtcNow;
+                    dbLead.Status = "email_sent";
+                    dbLead.UpdatedAt = DateTime.UtcNow;
+                }
             }
 
             db.LeadOptimizerLeadEvents.Add(
                 new LeadOptimizerLeadEvent
                 {
                     LeadId = lead.Id,
-
                     EventType = "automation",
-
                     Title = "Automation ausgeführt",
-
                     Description = rule.Name
                 });
         }

@@ -26,8 +26,11 @@
 
     </button>
 
-    <button class="tool-tab">
+    <button class="tool-tab @(activeTab == "mail" ? "active" : "")"
+            @onclick='() => activeTab = "mail"'>
+
         Mail-Automationen
+
     </button>
 
     <button class="tool-tab @(activeTab == "imports" ? "active" : "")"
@@ -83,7 +86,22 @@
 
                 </select>
             </div>
+                <div class="col-md-3 mb-3">
+                    <label>Aktion</label>
 
+                    <select class="form-select"
+                            @bind="newRule.ActionType">
+
+                        <option value="CreateTask">
+                            Aufgabe erstellen
+                        </option>
+
+                        <option value="SendQualificationMail">
+                            Qualifizierungs-Mail senden
+                        </option>
+
+                    </select>
+                </div>
             <div class="col-md-3 mb-3">
                 <label>Priorität</label>
 
@@ -344,6 +362,103 @@
 </div>
 }
 
+@if (activeTab == "mail")
+{
+    <div class="card p-4 mt-4">
+
+        <h3 class="mb-4">
+            SMTP / Mailversand
+        </h3>
+
+        <div class="row">
+
+            <div class="col-md-6 mb-3">
+                <label>SMTP Host</label>
+
+                <input class="form-control"
+                       @bind="emailSettings.SmtpHost" />
+            </div>
+
+            <div class="col-md-3 mb-3">
+                <label>Port</label>
+
+                <input type="number"
+                       class="form-control"
+                       @bind="emailSettings.SmtpPort" />
+            </div>
+
+            <div class="col-md-3 mb-3">
+
+                <label>SSL</label>
+
+                <div class="form-check mt-2">
+
+                    <input type="checkbox"
+                           class="form-check-input"
+                           @bind="emailSettings.UseSsl" />
+
+                    <label class="form-check-label">
+                        SSL verwenden
+                    </label>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="row">
+
+            <div class="col-md-6 mb-3">
+                <label>SMTP Benutzername</label>
+
+                <input class="form-control"
+                       @bind="emailSettings.SmtpUsername" />
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label>SMTP Passwort</label>
+
+                <input type="password"
+                       class="form-control"
+                       @bind="emailSettings.SmtpPassword" />
+            </div>
+
+        </div>
+
+        <div class="row">
+
+            <div class="col-md-6 mb-3">
+                <label>Absendername</label>
+
+                <input class="form-control"
+                       @bind="emailSettings.SenderName" />
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label>Absender E-Mail</label>
+
+                <input class="form-control"
+                       @bind="emailSettings.SenderEmail" />
+            </div>
+
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="SaveEmailSettings">
+            Einstellungen speichern
+        </button>
+
+        @if (!string.IsNullOrWhiteSpace(emailMessage))
+        {
+            <div class="alert alert-info mt-3">
+                @emailMessage
+            </div>
+        }
+
+    </div>
+}
+
 @code {
 
     private List<LeadAutomationRule> rules = new();
@@ -352,11 +467,15 @@
     private LeadAutomationRule newRule = new()
     {
         TriggerEvent = "LeadQualified",
+        ActionType = "CreateTask",
         TaskPriority = "High",
         DueOffsetMinutes = 15
     };
     private List<LeadSource> sources = new();
     private string activeTab = "task-rules";
+    private LeadEmailSettings emailSettings = new();
+
+    private string emailMessage = "";
 
     private LeadSource newSource = new()
     {
@@ -370,6 +489,7 @@
     {
         await LoadRules();
         await LoadSources();
+        await LoadEmailSettings();
     }
 
     private async Task LoadRules()
@@ -417,7 +537,8 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(newRule.TaskTitle))
+        if (newRule.ActionType == "CreateTask"
+            && string.IsNullOrWhiteSpace(newRule.TaskTitle))
         {
             ruleMessage = "Bitte einen Aufgabentitel eingeben.";
             return;
@@ -432,7 +553,6 @@
         {
             newRule.CreatedAt = DateTime.UtcNow;
             newRule.UpdatedAt = DateTime.UtcNow;
-            newRule.ActionType = "CreateTask";
 
             db.LeadAutomationRules.Add(newRule);
 
@@ -451,7 +571,7 @@
 
             dbRule.Name = newRule.Name;
             dbRule.TriggerEvent = newRule.TriggerEvent;
-            dbRule.ActionType = "CreateTask";
+            dbRule.ActionType = newRule.ActionType;
             dbRule.TaskTitle = newRule.TaskTitle;
             dbRule.TaskDescription = newRule.TaskDescription;
             dbRule.TaskPriority = newRule.TaskPriority;
@@ -580,6 +700,81 @@
         await LoadSources();
     }
 
+    private async Task LoadEmailSettings()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var authState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var user =
+            await UserManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            return;
+        }
+
+        emailSettings = await db.LeadEmailSettings
+            .FirstOrDefaultAsync(x => x.UserId == user.Id)
+            ?? new LeadEmailSettings
+            {
+                UserId = user.Id,
+                SmtpPort = 587,
+                UseSsl = true
+            };
+    }
+
+    private async Task SaveEmailSettings()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var authState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var user =
+            await UserManager.GetUserAsync(authState.User);
+
+        if (user == null)
+        {
+            emailMessage = "Benutzer nicht gefunden.";
+            return;
+        }
+
+        var existing = await db.LeadEmailSettings
+            .FirstOrDefaultAsync(x => x.UserId == user.Id);
+
+        if (existing == null)
+        {
+            emailSettings.UserId = user.Id;
+            emailSettings.CreatedAt = DateTime.UtcNow;
+            emailSettings.UpdatedAt = DateTime.UtcNow;
+
+            db.LeadEmailSettings.Add(emailSettings);
+        }
+        else
+        {
+            existing.SmtpHost = emailSettings.SmtpHost;
+            existing.SmtpPort = emailSettings.SmtpPort;
+            existing.UseSsl = emailSettings.UseSsl;
+            existing.SmtpUsername = emailSettings.SmtpUsername;
+            existing.SmtpPassword = emailSettings.SmtpPassword;
+            existing.SenderName = emailSettings.SenderName;
+            existing.SenderEmail = emailSettings.SenderEmail;
+            existing.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync();
+
+        emailMessage = "Mail-Einstellungen gespeichert.";
+    }
+    
     private async Task ToggleSource(int sourceId)
     {
         using var scope = ScopeFactory.CreateScope();

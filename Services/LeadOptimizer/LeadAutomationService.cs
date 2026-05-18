@@ -51,21 +51,42 @@ public class LeadAutomationService
 
             if (rule.ActionType == "SendQualificationMail")
             {
-                var qualificationUrl =
-                    $"https://toolbox.promotekk.com/lead/q/{lead.QualificationToken}";
-
-                await _leadEmailService.SendQualificationEmailAsync(
-                    lead,
-                    qualificationUrl);
-
-                var dbLead = await db.LeadOptimizerLeads
-                    .FirstOrDefaultAsync(x => x.Id == lead.Id);
-
-                if (dbLead != null)
+                try
                 {
-                    dbLead.QualificationEmailSentAt = DateTime.UtcNow;
-                    dbLead.Status = "email_sent";
-                    dbLead.UpdatedAt = DateTime.UtcNow;
+                    var qualificationUrl =
+                        $"https://toolbox.promotekk.com/lead/q/{lead.QualificationToken}";
+
+                    await _leadEmailService.SendQualificationEmailAsync(
+                        lead,
+                        qualificationUrl);
+
+                    var dbLead = await db.LeadOptimizerLeads
+                        .FirstOrDefaultAsync(x => x.Id == lead.Id);
+
+                    if (dbLead != null)
+                    {
+                        dbLead.QualificationEmailSentAt = DateTime.UtcNow;
+                        dbLead.Status = "email_sent";
+                        dbLead.UpdatedAt = DateTime.UtcNow;
+                    }
+
+                    db.LeadOptimizerLeadEvents.Add(new LeadOptimizerLeadEvent
+                    {
+                        LeadId = lead.Id,
+                        EventType = "mail_sent",
+                        Title = "Qualifizierungs-Mail gesendet",
+                        Description = lead.CustomerEmail
+                    });
+                }
+                catch (Exception ex)
+                {
+                    db.LeadOptimizerLeadEvents.Add(new LeadOptimizerLeadEvent
+                    {
+                        LeadId = lead.Id,
+                        EventType = "mail_failed",
+                        Title = "Qualifizierungs-Mail fehlgeschlagen",
+                        Description = ex.Message
+                    });
                 }
             }
 

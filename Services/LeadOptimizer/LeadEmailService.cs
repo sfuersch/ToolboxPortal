@@ -95,7 +95,7 @@ Freundliche Grüße<br>
 
         using var smtp = new SmtpClient();
 
-        var secureSocketOptions = settings.SmtpPort == 465
+        var secureSocketOptions = settings.SmtpPort == 465 || settings.SmtpPort == 4465
     ? SecureSocketOptions.SslOnConnect
     : settings.UseSsl
         ? SecureSocketOptions.StartTls

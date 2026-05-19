@@ -106,19 +106,15 @@ public class LeadInboundController : ControllerBase
 
         await db.SaveChangesAsync();
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await _leadAutomationService.RunAsync(
-                    "LeadCreated",
-                    lead);
-            }
-            catch
-            {
-                // später sauber loggen
-            }
-        });
+        db.AutomationJobs.Add(
+    new AutomationJob
+    {
+        JobType = "LeadCreated",
+        LeadId = lead.Id,
+        Status = "Pending"
+    });
+
+        await db.SaveChangesAsync();
 
         return Ok(new
         {

@@ -65,6 +65,7 @@ builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuth
 builder.Services.AddScoped<LeadScoringService>();
 builder.Services.AddScoped<LeadAutomationService>();
 builder.Services.AddScoped<LeadEmailService>();
+builder.Services.AddHostedService<AutomationJobWorker>();
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = IdentityConstants.ApplicationScheme;

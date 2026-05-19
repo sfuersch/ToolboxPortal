@@ -52,6 +52,9 @@ namespace ToolboxPortal.Data
         public DbSet<KnowledgeBaseArticle> KnowledgeBaseArticles
     => Set<KnowledgeBaseArticle>();
 
+        public DbSet<AutomationJob> AutomationJobs
+    => Set<AutomationJob>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

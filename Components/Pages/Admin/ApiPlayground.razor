@@ -3,6 +3,7 @@
 
 @using System.Net.Http.Json
 @inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
 
 <PageTitle>API Playground</PageTitle>
 
@@ -95,8 +96,11 @@
                 System.Text.Encoding.UTF8,
                 "application/json");
 
+            var requestUrl =
+    new Uri(new Uri(Navigation.BaseUri), "api/leads/inbound");
+
             var response = await client.PostAsync(
-                "/api/leads/inbound",
+                requestUrl,
                 content);
 
             var body = await response.Content.ReadAsStringAsync();

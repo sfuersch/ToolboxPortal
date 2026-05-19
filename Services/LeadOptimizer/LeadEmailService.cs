@@ -1,7 +1,6 @@
-﻿using MailKit.Net.Smtp;
-using MailKit.Security;
+﻿using System.Net;
+using System.Net.Mail;
 using Microsoft.EntityFrameworkCore;
-using MimeKit;
 using ToolboxPortal.Data;
 using ToolboxPortal.Models;
 
@@ -11,107 +10,134 @@ public class LeadEmailService
 {
     private readonly IServiceScopeFactory _scopeFactory;
 
-    public LeadEmailService(IServiceScopeFactory scopeFactory)
+    public LeadEmailService(
+        IServiceScopeFactory scopeFactory)
     {
         _scopeFactory = scopeFactory;
     }
 
     public async Task SendQualificationEmailAsync(
-        LeadOptimizerLead lead,
-        string qualificationUrl)
+    LeadOptimizerLead lead,
+    string qualificationUrl)
     {
-        if (string.IsNullOrWhiteSpace(lead.CustomerEmail))
-        {
-            return;
-        }
-
         using var scope = _scopeFactory.CreateScope();
 
         var db = scope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
 
         var settings = await db.LeadEmailSettings
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.UserId == lead.UserId);
 
-        if (settings == null || string.IsNullOrWhiteSpace(settings.SmtpHost))
+        if (settings == null)
         {
-            throw new InvalidOperationException("Lead-Mail-Einstellungen fehlen.");
+            throw new Exception("Keine SMTP Einstellungen gefunden.");
         }
 
-        var subject = "Ihre Fahrzeuganfrage vervollständigen";
-
-        var greeting = string.IsNullOrWhiteSpace(lead.CustomerName)
-            ? "Guten Tag,"
-            : $"Guten Tag {lead.CustomerName},";
-
-        var vehicleText = string.IsNullOrWhiteSpace(lead.VehicleTitle)
-            ? "Ihr gewünschtes Fahrzeug"
-            : lead.VehicleTitle;
-
-        var body = $@"
-<p>{greeting}</p>
-
-<p>vielen Dank für Ihre Anfrage zu <strong>{vehicleText}</strong>.</p>
-
-<p>
-Damit wir Ihr persönliches Angebot optimal vorbereiten können,
-bitten wir Sie um ein paar kurze Angaben.
-</p>
-
-<p>Das dauert weniger als eine Minute.</p>
-
-<p>
-<a href=""{qualificationUrl}""
-   style=""display:inline-block;padding:12px 18px;background:#0d6efd;color:#ffffff;text-decoration:none;border-radius:6px;"">
-    Anfrage vervollständigen
-</a>
-</p>
-
-<p>
-Alternativ können Sie diesen Link öffnen:<br>
-{qualificationUrl}
-</p>
-
-<p>
-Freundliche Grüße<br>
-{settings.SenderName}
-</p>";
-
-        var message = new MimeMessage();
-
-        message.From.Add(new MailboxAddress(
-            settings.SenderName,
-            settings.SenderEmail));
-
-        message.To.Add(MailboxAddress.Parse(lead.CustomerEmail));
-
-        message.Subject = subject;
-
-        message.Body = new BodyBuilder
+        if (string.IsNullOrWhiteSpace(lead.CustomerEmail))
         {
-            HtmlBody = body
-        }.ToMessageBody();
+            throw new Exception("Lead besitzt keine E-Mail-Adresse.");
+        }
 
-        using var smtp = new SmtpClient();
+        var template = await db.LeadMailTemplates
+            .FirstOrDefaultAsync(x =>
+                x.UserId == lead.UserId
+                && x.TemplateKey == "QualificationMail");
 
-        var secureSocketOptions = settings.SmtpPort == 465 || settings.SmtpPort == 4465
-    ? SecureSocketOptions.SslOnConnect
-    : settings.UseSsl
-        ? SecureSocketOptions.StartTls
-        : SecureSocketOptions.None;
+        
+        string subject;
+        string body;
 
-        await smtp.ConnectAsync(
+        if (template != null)
+        {
+            subject = ReplaceVariables(
+                template.Subject,
+                lead,
+                qualificationUrl);
+
+            body = ReplaceVariables(
+                template.HtmlBody,
+                lead,
+                qualificationUrl);
+        }
+        else
+        {
+            subject = "Weitere Informationen zu Ihrer Anfrage";
+
+            body = $@"
+<h2>Hallo {lead.CustomerFirstName},</h2>
+
+<p>
+vielen Dank für Ihre Anfrage.
+</p>
+
+<p>
+Bitte ergänzen Sie noch einige Informationen:
+</p>
+
+<p>
+<a href='{qualificationUrl}'>
+Jetzt Daten ergänzen
+</a>
+</p>";
+        }
+
+        using var client = new SmtpClient(
             settings.SmtpHost,
-            settings.SmtpPort,
-            secureSocketOptions);
+            settings.SmtpPort);
 
-        await smtp.AuthenticateAsync(
+        client.EnableSsl = settings.UseSsl;
+
+        client.Credentials = new NetworkCredential(
             settings.SmtpUsername,
             settings.SmtpPassword);
 
-        await smtp.SendAsync(message);
+        var mail = new MailMessage
+        {
+            From = new MailAddress(
+                settings.SenderEmail,
+                settings.SenderName),
 
-        await smtp.DisconnectAsync(true);
+            Subject = subject,
+            Body = body,
+            IsBodyHtml = true
+        };
+
+        mail.To.Add(lead.CustomerEmail);
+
+        await client.SendMailAsync(mail);
+
+        lead.QualificationEmailSentAt = DateTime.UtcNow;
+
+        db.LeadOptimizerLeadEvents.Add(
+            new LeadOptimizerLeadEvent
+            {
+                LeadId = lead.Id,
+                EventType = "QualificationMailSent",
+                Title = "Qualifizierungs-Mail versendet",
+                Description = $"Versendet an {lead.CustomerEmail}",
+                CreatedAt = DateTime.UtcNow
+            });
+
+        await db.SaveChangesAsync();
+    }
+
+    private string ReplaceVariables(
+        string? content,
+        LeadOptimizerLead lead,
+        string qualificationUrl)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return "";
+        }
+
+        return content
+            .Replace("{FirstName}", lead.CustomerFirstName ?? "")
+            .Replace("{LastName}", lead.CustomerLastName ?? "")
+            .Replace("{FullName}", lead.CustomerName ?? "")
+            .Replace("{VehicleTitle}", lead.VehicleTitle ?? "")
+            .Replace("{QualificationUrl}", qualificationUrl)
+            .Replace("{CurrentDate}",
+                DateTime.Now.ToString("dd.MM.yyyy"));
     }
 }

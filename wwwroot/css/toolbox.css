@@ -1177,3 +1177,22 @@ a {
         max-width: 760px;
         margin: 0 auto;
     }
+.lead-public-wrap {
+    min-height: 100vh;
+    background: #f4f6f9;
+    padding: 40px 20px;
+}
+
+.lead-public-card {
+    max-width: 720px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
+
+.lead-public-intro {
+    margin-bottom: 30px;
+    color: #555;
+}

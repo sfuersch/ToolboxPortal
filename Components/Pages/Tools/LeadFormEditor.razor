@@ -1,0 +1,319 @@
+﻿@page "/tools/lead-optimizer/forms/{Id:int}"
+@attribute [Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+
+<PageTitle>Formular Felder</PageTitle>
+
+<a class="btn btn-outline-secondary mb-3"
+       href="/tools/lead-optimizer/automation">
+    ← Zurück
+</a>
+
+@if (isLoading)
+{
+    <p>Lade Formular...</p>
+}
+else if (form == null)
+{
+    <div class="alert alert-danger">
+        Formular nicht gefunden.
+    </div>
+}
+else
+{
+    <h1>@form.Name</h1>
+
+    <p class="text-muted">
+        @form.Headline
+    </p>
+
+    <div class="card p-4 mb-4">
+
+        <h3>Neues Feld</h3>
+
+        <div class="row">
+
+            <div class="col-md-4 mb-3">
+                <label>Label</label>
+                <input class="form-control" @bind="newField.Label" />
+            </div>
+
+            <div class="col-md-3 mb-3">
+                <label>Feld-Key</label>
+                <input class="form-control" @bind="newField.FieldKey" />
+            </div>
+
+            <div class="col-md-3 mb-3">
+                <label>Feldtyp</label>
+                <select class="form-select" @bind="newField.FieldType">
+                    <option>Text</option>
+                    <option>Textarea</option>
+                    <option>Email</option>
+                    <option>Phone</option>
+                    <option>Select</option>
+                    <option>Checkbox</option>
+                    <option>Date</option>
+                    <option>Number</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 mb-3">
+                <label>Reihenfolge</label>
+                <input type="number" class="form-control" @bind="newField.SortOrder" />
+            </div>
+
+        </div>
+
+        <div class="mb-3">
+            <label>Placeholder / Checkbox-Text</label>
+            <input class="form-control" @bind="newField.Placeholder" />
+        </div>
+
+        @if (newField.FieldType == "Select")
+        {
+            <div class="mb-3">
+                <label>Optionen</label>
+                <textarea class="form-control"
+                          rows="4"
+                          placeholder="Eine Option pro Zeile"
+                          @bind="newField.OptionsJson"></textarea>
+            </div>
+        }
+
+        <div class="row">
+
+            <div class="col-md-6 mb-3">
+                <label>Mapping auf Lead-Feld</label>
+                <select class="form-select" @bind="newField.MapsToLeadProperty">
+                    <option value="">Kein Mapping</option>
+
+                    <option value="CustomerFirstName">Vorname</option>
+                    <option value="CustomerLastName">Nachname</option>
+                    <option value="CustomerName">Vollständiger Name</option>
+                    <option value="CustomerEmail">E-Mail</option>
+                    <option value="CustomerPhone">Telefonnummer</option>
+
+                    <option value="VehicleTitle">Fahrzeuginteresse</option>
+                    <option value="VehicleMake">Marke</option>
+                    <option value="VehicleModel">Modell</option>
+                    <option value="VehicleUrl">Fahrzeug-URL</option>
+                    <option value="VehiclePrice">Fahrzeugpreis</option>
+
+                    <option value="PurchaseTimeframe">Kaufzeitraum</option>
+                    <option value="PaymentType">Zahlungsart</option>
+                    <option value="WantsTradeIn">Inzahlungnahme ja/nein</option>
+                    <option value="TradeInVehicle">Inzahlungnahme Fahrzeug</option>
+                    <option value="ContactPreference">Kontaktwunsch</option>
+                    <option value="QualificationNotes">Notizen</option>
+                    <option value="PrivacyAccepted">Datenschutz akzeptiert</option>
+
+                    <option value="OriginalMessage">Originalnachricht</option>
+                    <option value="UtmSource">UTM Source</option>
+                    <option value="UtmMedium">UTM Medium</option>
+                    <option value="UtmCampaign">UTM Campaign</option>
+                </select>
+            </div>
+
+            <div class="col-md-6 mb-3 d-flex align-items-end">
+                <div class="form-check">
+                    <input type="checkbox"
+                           class="form-check-input"
+                           @bind="newField.IsRequired" />
+
+                    <label class="form-check-label">
+                        Pflichtfeld
+                    </label>
+                </div>
+            </div>
+
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="SaveField">
+            Feld speichern
+        </button>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="alert alert-info mt-3">
+                @message
+            </div>
+        }
+
+    </div>
+
+    <div class="card p-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>Felder</h3>
+
+            <a class="btn btn-outline-secondary"
+                   href="/tools/lead-optimizer/forms/@Id/preview"
+                   target="_blank">
+                Vorschau öffnen
+            </a>
+        </div>
+
+        @if (!fields.Any())
+        {
+            <p>Noch keine Felder vorhanden.</p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Sortierung</th>
+                        <th>Label</th>
+                        <th>Key</th>
+                        <th>Typ</th>
+                        <th>Pflicht</th>
+                        <th>Mapping</th>
+                        <th>Aktion</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var field in fields)
+                    {
+                        <tr>
+                            <td>@field.SortOrder</td>
+                            <td>@field.Label</td>
+                            <td>@field.FieldKey</td>
+                            <td>@field.FieldType</td>
+                            <td>@(field.IsRequired ? "Ja" : "Nein")</td>
+                            <td>@field.MapsToLeadProperty</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        @onclick="() => DeleteField(field.Id)">
+                                    Löschen
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private LeadForm? form;
+    private List<LeadFormField> fields = new();
+    private bool isLoading = true;
+    private string message = "";
+
+    private LeadFormField newField = new()
+    {
+        FieldType = "Text",
+        SortOrder = 10
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadForm();
+    }
+
+    private async Task LoadForm()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        form = await db.LeadForms
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == Id);
+
+        fields = await db.LeadFormFields
+            .AsNoTracking()
+            .Where(x => x.LeadFormId == Id)
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync();
+
+        isLoading = false;
+    }
+
+    private async Task SaveField()
+    {
+        if (string.IsNullOrWhiteSpace(newField.Label))
+        {
+            message = "Bitte ein Label eingeben.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newField.FieldKey))
+        {
+            newField.FieldKey = GenerateFieldKey(newField.Label);
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        newField.LeadFormId = Id;
+        newField.CreatedAt = DateTime.UtcNow;
+        newField.UpdatedAt = DateTime.UtcNow;
+
+        db.LeadFormFields.Add(newField);
+
+        await db.SaveChangesAsync();
+
+        message = "Feld wurde gespeichert.";
+
+        newField = new LeadFormField
+        {
+            FieldType = "Text",
+            SortOrder = fields.Any() ? fields.Max(x => x.SortOrder) + 10 : 10
+        };
+
+        await LoadForm();
+    }
+
+    private async Task DeleteField(int fieldId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var field = await db.LeadFormFields
+            .FirstOrDefaultAsync(x => x.Id == fieldId && x.LeadFormId == Id);
+
+        if (field == null)
+        {
+            return;
+        }
+
+        db.LeadFormFields.Remove(field);
+
+        await db.SaveChangesAsync();
+
+        message = "Feld wurde gelöscht.";
+
+        await LoadForm();
+    }
+
+    private static string GenerateFieldKey(string label)
+    {
+        return label
+            .Trim()
+            .ToLower()
+            .Replace("ä", "ae")
+            .Replace("ö", "oe")
+            .Replace("ü", "ue")
+            .Replace("ß", "ss")
+            .Replace(" ", "_")
+            .Replace("-", "_");
+    }
+}

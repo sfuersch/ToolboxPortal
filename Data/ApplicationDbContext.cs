@@ -42,6 +42,13 @@ namespace ToolboxPortal.Data
 
         public DbSet<LeadMailTemplate> LeadMailTemplates => Set<LeadMailTemplate>();
 
+        public DbSet<LeadForm> LeadForms => Set<LeadForm>();
+        public DbSet<LeadFormField> LeadFormFields => Set<LeadFormField>();
+
+        public DbSet<LeadExportTarget> LeadExportTargets => Set<LeadExportTarget>();
+
+        public DbSet<LeadExportLog> LeadExportLogs => Set<LeadExportLog>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

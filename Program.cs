@@ -92,6 +92,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+builder.Services.AddScoped<CatchLeadExportService>();
 
 builder.Services.AddScoped<OpenAiService>();
 builder.Services.AddScoped<EmailService>();

@@ -4,10 +4,12 @@
 @using Microsoft.EntityFrameworkCore
 @using ToolboxPortal.Data
 @using ToolboxPortal.Models
+@using ToolboxPortal.Services.LeadOptimizer
 
 @inject IServiceScopeFactory ScopeFactory
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject CatchLeadExportService CatchLeadExportService
 
 <PageTitle>Lead Details</PageTitle>
 <a class="btn btn-outline-secondary mb-3"
@@ -374,6 +376,21 @@ else
                 </button>
 
             </div>
+            <button class="btn btn-outline-primary"
+                    @onclick="ExportToCatch"
+                    disabled="@isExporting">
+
+                @(isExporting
+                    ? "Exportiere..."
+                    : "An CATCH exportieren")
+
+            </button>
+            @if (!string.IsNullOrWhiteSpace(exportMessage))
+            {
+                <div class="alert alert-info mt-3">
+                    @exportMessage
+                </div>
+            }
 
         </div>
 
@@ -393,6 +410,8 @@ else
     private string qualificationUrl = "";
     private List<LeadOptimizerLeadEvent> events = new();
     private List<LeadOptimizerTask> tasks = new();
+    private string exportMessage = "";
+    private bool isExporting;
 
     private async Task CopyQualificationLink()
     {
@@ -499,6 +518,58 @@ else
         };
 
         taskMessage = "Aufgabe wurde gespeichert.";
+    }
+
+    private async Task ExportToCatch()
+    {
+        if (lead == null)
+        {
+            return;
+        }
+
+        isExporting = true;
+
+        try
+        {
+            using var scope = ScopeFactory.CreateScope();
+
+            var db = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var exportTarget = await db.LeadExportTargets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.UserId == lead.UserId
+                    && x.IsActive);
+
+            if (exportTarget == null)
+            {
+                exportMessage =
+                    "Kein aktives Exportziel gefunden.";
+
+                return;
+            }
+
+            await CatchLeadExportService.ExportLeadAsync(
+                lead.Id,
+                exportTarget.Id);
+
+            exportMessage =
+                "Lead wurde erfolgreich an CATCH exportiert.";
+
+            Navigation.NavigateTo(
+    Navigation.Uri,
+    forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            exportMessage =
+                $"Exportfehler: {ex.Message}";
+        }
+        finally
+        {
+            isExporting = false;
+        }
     }
 
     private async Task CompleteTask(int taskId)

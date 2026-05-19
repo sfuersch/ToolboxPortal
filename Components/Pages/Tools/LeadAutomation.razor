@@ -33,7 +33,10 @@
         Mail-Automationen
 
     </button>
-
+    <button class="tool-tab @(activeTab == "forms" ? "active" : "")"
+            @onclick='() => SetActiveTab("forms")'>
+        Formulare
+    </button>
     <button class="tool-tab @(activeTab == "imports" ? "active" : "")"
             @onclick='() => activeTab = "imports"'>
 
@@ -41,8 +44,11 @@
 
     </button>
 
-    <button class="tool-tab">
+    <button class="tool-tab @(activeTab == "exports" ? "active" : "")"
+            @onclick='() => activeTab = "exports"'>
+
         Exporte / CRM
+
     </button>
 
     <button class="tool-tab">
@@ -589,6 +595,318 @@
     </div>
 }
 
+@if (activeTab == "forms")
+{
+    <div class="card p-4 mt-4">
+
+        <h3 class="mb-4">
+            Formulare
+        </h3>
+
+        <div class="border rounded p-3 mb-4">
+
+            <div class="row">
+
+                <div class="col-md-6 mb-3">
+                    <label>Name</label>
+
+                    <input class="form-control"
+                           placeholder="z. B. Standard Qualifizierungsformular"
+                           @bind="newForm.Name" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Öffentlicher Formular-Key</label>
+
+                    <input class="form-control"
+                           placeholder="z. B. qualification"
+                           @bind="newForm.FormKey" />
+
+                    <small class="text-muted">
+                        Öffentliche URL: /lead/form/@newForm.FormKey
+                    </small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Formulartyp</label>
+
+                    <input class="form-control"
+                           value="Qualifizierungsformular"
+                           readonly />
+                </div>
+
+            </div>
+
+            <div class="mb-3">
+                <label>Überschrift</label>
+
+                <input class="form-control"
+                       @bind="newForm.Headline" />
+            </div>
+
+            <div class="mb-3">
+                <label>Einleitungstext</label>
+
+                <textarea class="form-control"
+                          rows="3"
+                          @bind="newForm.IntroText"></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label>Danke-Text</label>
+
+                <textarea class="form-control"
+                          rows="3"
+                          @bind="newForm.SuccessText"></textarea>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary"
+                        @onclick="SaveForm">
+                    @(editingFormId == null ? "Formular anlegen" : "Änderungen speichern")
+                </button>
+
+                @if (editingFormId != null)
+                {
+                    <button class="btn btn-outline-secondary"
+                            @onclick="CancelFormEdit">
+                        Abbrechen
+                    </button>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(formMessage))
+            {
+                <div class="alert alert-info mt-3">
+                    @formMessage
+                </div>
+            }
+
+        </div>
+
+        @if (!leadForms.Any())
+        {
+            <p>Noch keine Formulare vorhanden.</p>
+        }
+        else
+        {
+            <table class="table">
+
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Key</th>
+                        <th>Überschrift</th>
+                        <th>Status</th>
+                        <th>Aktion</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var form in leadForms)
+                    {
+                        <tr>
+                            <td>@form.Name</td>
+                            <td>@form.FormKey</td>
+                            <td>@form.Headline</td>
+                            <td>
+                                @if (form.IsActive)
+                                {
+                                    <span class="badge bg-success">Aktiv</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inaktiv</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="d-flex gap-2 flex-wrap">
+
+                                    <a class="btn btn-sm btn-outline-primary"
+                                           href="/tools/lead-optimizer/forms/@form.Id">
+                                        Felder
+                                    </a>
+
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                           href="/tools/lead-optimizer/forms/@form.Id/preview"
+                                           target="_blank">
+                                        Vorschau
+                                    </a>
+
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            @onclick="() => EditForm(form.Id)">
+                                        Bearbeiten
+                                    </button>
+
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            @onclick="() => ToggleForm(form.Id)">
+                                        @(form.IsActive ? "Deaktivieren" : "Aktivieren")
+                                    </button>
+
+                                    @if (!form.IsActive)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => DeleteForm(form.Id)">
+                                            Löschen
+                                        </button>
+                                    }
+
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+
+            </table>
+        }
+
+    </div>
+}
+@if (activeTab == "exports")
+{
+    <div class="card p-4 mt-4">
+
+        <h3 class="mb-4">
+            CRM Exporte
+        </h3>
+
+        <div class="border rounded p-3 mb-4">
+
+            <div class="row">
+
+                <div class="col-md-6 mb-3">
+                    <label>Name</label>
+
+                    <input class="form-control"
+                           @bind="newExportTarget.Name" />
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label>CATCH E-Mail Adresse</label>
+
+                    <input class="form-control"
+                           @bind="newExportTarget.CatchEmailAddress" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label>Kampagne</label>
+
+                    <input class="form-control"
+                           @bind="newExportTarget.CampaignName" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label>Lead Source</label>
+
+                    <input class="form-control"
+                           @bind="newExportTarget.LeadSource" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label>Lead Channel</label>
+
+                    <input class="form-control"
+                           @bind="newExportTarget.LeadChannel" />
+                </div>
+
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary"
+                        @onclick="SaveExportTarget">
+                    @(editingExportTargetId == null ? "Exportziel speichern" : "Änderungen speichern")
+                </button>
+
+                @if (editingExportTargetId != null)
+                {
+                    <button class="btn btn-outline-secondary"
+                            @onclick="CancelExportTargetEdit">
+                        Abbrechen
+                    </button>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(exportMessage))
+            {
+                <div class="alert alert-info mt-3">
+                    @exportMessage
+                </div>
+            }
+
+        </div>
+
+        @if (exportTargets.Any())
+        {
+            <table class="table">
+
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Empfänger</th>
+                        <th>Kampagne</th>
+                        <th>Status</th>
+                        <th>Aktion</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    @foreach (var target in exportTargets)
+                    {
+                        <tr>
+
+                            <td>@target.Name</td>
+
+                            <td>@target.CatchEmailAddress</td>
+
+                            <td>@target.CampaignName</td>
+
+                            <td>
+                                @if (target.IsActive)
+                                {
+                                    <span class="badge bg-success">
+                                        Aktiv
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">
+                                        Inaktiv
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            @onclick="() => EditExportTarget(target.Id)">
+                                        Bearbeiten
+                                    </button>
+
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            @onclick="() => ToggleExportTarget(target.Id)">
+                                        @(target.IsActive ? "Deaktivieren" : "Aktivieren")
+                                    </button>
+
+                                    @if (!target.IsActive)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => DeleteExportTarget(target.Id)">
+                                            Löschen
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+
+                        </tr>
+                    }
+
+                </tbody>
+
+            </table>
+        }
+
+    </div>
+
+}
+
 @code {
 
     private List<LeadAutomationRule> rules = new();
@@ -604,6 +922,32 @@
     private List<LeadSource> sources = new();
     private string activeTab = "task-rules";
     private LeadEmailSettings emailSettings = new();
+    private int? editingFormId;
+    private int? editingExportTargetId;
+
+    private List<LeadForm> leadForms = new();
+
+    private List<LeadExportTarget> exportTargets = new();
+
+    private LeadExportTarget newExportTarget = new()
+    {
+        ExportType = "Catch",
+        IsActive = true,
+        ExportOnQualified = true
+    };
+
+    private string exportMessage = "";
+
+    private LeadForm newForm = new()
+    {
+        FormKey = "QualificationForm",
+        Headline = "Anfrage vervollständigen",
+        IntroText = "Bitte ergänzen Sie noch einige Informationen für Ihr persönliches Angebot.",
+        SuccessText = "Vielen Dank! Ihre Angaben wurden erfolgreich übermittelt.",
+        IsActive = true
+    };
+
+    private string formMessage = "";
 
     private string emailMessage = "";
 
@@ -621,6 +965,8 @@
         await LoadSources();
         await LoadEmailSettings();
         await LoadMailTemplates();
+        await LoadForms();
+        await LoadExportTargets();
     }
 
     private async Task<string?> GetCurrentUserIdAsync()
@@ -677,11 +1023,14 @@
 
             await JS.InvokeVoidAsync(
                 "templateEditor.init",
-                "lead-template-editor");
+                "lead-template-editor",
+                mailTemplate.HtmlBody);
         }
-        catch
+        catch (Exception ex)
         {
             tinyInitialized = false;
+            templateMessage = $"Editor konnte nicht geladen werden: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
         }
     }
     
@@ -853,6 +1202,462 @@
         ResetRuleForm();
 
         await LoadRules();
+    }
+
+    private async Task LoadExportTargets()
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        exportTargets = await db.LeadExportTargets
+            .AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private async Task SaveExportTarget()
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            exportMessage = "Benutzer nicht gefunden.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newExportTarget.Name))
+        {
+            exportMessage = "Bitte einen Namen eingeben.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newExportTarget.CatchEmailAddress))
+        {
+            exportMessage = "Bitte die CATCH E-Mail-Adresse eingeben.";
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        if (editingExportTargetId == null)
+        {
+            newExportTarget.UserId = userId;
+            newExportTarget.ExportType = "Catch";
+            newExportTarget.IsActive = true;
+            newExportTarget.ExportOnQualified = true;
+            newExportTarget.CreatedAt = DateTime.UtcNow;
+
+            db.LeadExportTargets.Add(newExportTarget);
+
+            exportMessage = "Exportziel gespeichert.";
+        }
+        else
+        {
+            var dbTarget = await db.LeadExportTargets
+                .FirstOrDefaultAsync(x =>
+                    x.Id == editingExportTargetId.Value &&
+                    x.UserId == userId);
+
+            if (dbTarget == null)
+            {
+                exportMessage = "Exportziel wurde nicht gefunden.";
+                return;
+            }
+
+            dbTarget.Name = newExportTarget.Name;
+            dbTarget.CatchEmailAddress = newExportTarget.CatchEmailAddress;
+            dbTarget.CampaignName = newExportTarget.CampaignName;
+            dbTarget.LeadSource = newExportTarget.LeadSource;
+            dbTarget.LeadChannel = newExportTarget.LeadChannel;
+            dbTarget.DealerCode = newExportTarget.DealerCode;
+            dbTarget.ExportOnQualified = newExportTarget.ExportOnQualified;
+
+            exportMessage = "Exportziel wurde aktualisiert.";
+        }
+
+        await db.SaveChangesAsync();
+
+        ResetExportTargetForm();
+
+        await LoadExportTargets();
+    }
+
+    private async Task LoadForms()
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        leadForms = await db.LeadForms
+            .AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private async Task SaveForm()
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            formMessage = "Benutzer nicht gefunden.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newForm.Name))
+        {
+            formMessage = "Bitte einen Formularnamen eingeben.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newForm.FormKey))
+        {
+            newForm.FormKey = GenerateFormKey(newForm.Name);
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        if (editingFormId == null)
+        {
+            newForm.UserId = userId;
+            newForm.CreatedAt = DateTime.UtcNow;
+            newForm.UpdatedAt = DateTime.UtcNow;
+            newForm.IsActive = true;
+
+            db.LeadForms.Add(newForm);
+
+            formMessage = "Formular wurde angelegt.";
+        }
+        else
+        {
+            var dbForm = await db.LeadForms
+                .FirstOrDefaultAsync(x =>
+                    x.Id == editingFormId.Value &&
+                    x.UserId == userId);
+
+            if (dbForm == null)
+            {
+                formMessage = "Formular wurde nicht gefunden.";
+                return;
+            }
+
+            dbForm.Name = newForm.Name;
+            dbForm.FormKey = newForm.FormKey;
+            dbForm.Headline = newForm.Headline;
+            dbForm.IntroText = newForm.IntroText;
+            dbForm.SuccessText = newForm.SuccessText;
+            dbForm.UpdatedAt = DateTime.UtcNow;
+
+            formMessage = "Formular wurde aktualisiert.";
+        }
+
+        await db.SaveChangesAsync();
+
+        ResetFormEditor();
+
+        await LoadForms();
+    }
+
+    private async Task EditForm(int formId)
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbForm = await db.LeadForms
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.Id == formId &&
+                x.UserId == userId);
+
+        if (dbForm == null)
+        {
+            return;
+        }
+
+        editingFormId = dbForm.Id;
+
+        newForm = new LeadForm
+        {
+            UserId = dbForm.UserId,
+            Name = dbForm.Name,
+            FormKey = dbForm.FormKey,
+            Headline = dbForm.Headline,
+            IntroText = dbForm.IntroText,
+            SuccessText = dbForm.SuccessText,
+            IsActive = dbForm.IsActive
+        };
+
+        formMessage = "Formular wird bearbeitet.";
+    }
+
+    private async Task ToggleForm(int formId)
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbForm = await db.LeadForms
+            .FirstOrDefaultAsync(x =>
+                x.Id == formId &&
+                x.UserId == userId);
+
+        if (dbForm == null)
+        {
+            return;
+        }
+
+        dbForm.IsActive = !dbForm.IsActive;
+        dbForm.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync();
+
+        await LoadForms();
+    }
+
+    private static string GenerateFormKey(string name)
+    {
+        return name
+            .Trim()
+            .ToLower()
+            .Replace("ä", "ae")
+            .Replace("ö", "oe")
+            .Replace("ü", "ue")
+            .Replace("ß", "ss")
+            .Replace(" ", "-")
+            .Replace("_", "-");
+    }
+    
+    private async Task DeleteForm(int formId)
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbForm = await db.LeadForms
+            .Include(x => x.Fields)
+            .FirstOrDefaultAsync(x =>
+                x.Id == formId &&
+                x.UserId == userId);
+
+        if (dbForm == null)
+        {
+            return;
+        }
+
+        if (dbForm.IsActive)
+        {
+            formMessage = "Aktive Formulare können nicht gelöscht werden. Bitte zuerst deaktivieren.";
+            return;
+        }
+
+        db.LeadForms.Remove(dbForm);
+
+        await db.SaveChangesAsync();
+
+        formMessage = "Formular wurde gelöscht.";
+
+        await LoadForms();
+    }
+
+    private void CancelFormEdit()
+    {
+        ResetFormEditor();
+        formMessage = "";
+    }
+
+    private void ResetFormEditor()
+    {
+        editingFormId = null;
+
+        newForm = new LeadForm
+        {
+            FormKey = "QualificationForm",
+            Headline = "Anfrage vervollständigen",
+            IntroText = "Bitte ergänzen Sie noch einige Informationen für Ihr persönliches Angebot.",
+            SuccessText = "Vielen Dank! Ihre Angaben wurden erfolgreich übermittelt.",
+            IsActive = true
+        };
+    }
+    
+    private async Task EditExportTarget(int targetId)
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbTarget = await db.LeadExportTargets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.Id == targetId &&
+                x.UserId == userId);
+
+        if (dbTarget == null)
+        {
+            return;
+        }
+
+        editingExportTargetId = dbTarget.Id;
+
+        newExportTarget = new LeadExportTarget
+        {
+            Name = dbTarget.Name,
+            ExportType = dbTarget.ExportType,
+            CatchEmailAddress = dbTarget.CatchEmailAddress,
+            CampaignName = dbTarget.CampaignName,
+            LeadSource = dbTarget.LeadSource,
+            LeadChannel = dbTarget.LeadChannel,
+            DealerCode = dbTarget.DealerCode,
+            ExportOnQualified = dbTarget.ExportOnQualified,
+            IsActive = dbTarget.IsActive
+        };
+
+        exportMessage = "Exportziel wird bearbeitet.";
+    }
+
+    private async Task ToggleExportTarget(int targetId)
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbTarget = await db.LeadExportTargets
+            .FirstOrDefaultAsync(x =>
+                x.Id == targetId &&
+                x.UserId == userId);
+
+        if (dbTarget == null)
+        {
+            return;
+        }
+
+        dbTarget.IsActive = !dbTarget.IsActive;
+
+        await db.SaveChangesAsync();
+
+        await LoadExportTargets();
+    }
+
+    private async Task DeleteExportTarget(int targetId)
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbTarget = await db.LeadExportTargets
+            .FirstOrDefaultAsync(x =>
+                x.Id == targetId &&
+                x.UserId == userId);
+
+        if (dbTarget == null)
+        {
+            return;
+        }
+
+        if (dbTarget.IsActive)
+        {
+            exportMessage = "Aktive Exportziele können nicht gelöscht werden. Bitte zuerst deaktivieren.";
+            return;
+        }
+
+        db.LeadExportTargets.Remove(dbTarget);
+
+        await db.SaveChangesAsync();
+
+        exportMessage = "Exportziel wurde gelöscht.";
+
+        await LoadExportTargets();
+    }
+
+    private void CancelExportTargetEdit()
+    {
+        ResetExportTargetForm();
+        exportMessage = "";
+    }
+
+    private void ResetExportTargetForm()
+    {
+        editingExportTargetId = null;
+
+        newExportTarget = new LeadExportTarget
+        {
+            ExportType = "Catch",
+            IsActive = true,
+            ExportOnQualified = true
+        };
     }
 
     private async Task EditRule(int ruleId)

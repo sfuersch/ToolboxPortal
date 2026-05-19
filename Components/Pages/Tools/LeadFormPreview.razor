@@ -1,0 +1,152 @@
+﻿@page "/tools/lead-optimizer/forms/{Id:int}/preview"
+@attribute [Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+
+<PageTitle>Formular Vorschau</PageTitle>
+
+@if (isLoading)
+{
+    <p>Lade Vorschau...</p>
+}
+else if (form == null)
+{
+    <div class="alert alert-danger">
+        Formular nicht gefunden.
+    </div>
+}
+else
+{
+    <div class="container py-5" style="max-width:720px;">
+
+        <div class="alert alert-info">
+            Vorschau-Modus: Es werden keine Daten gespeichert.
+        </div>
+
+        <div class="card p-4">
+
+            <h1 class="mb-3">
+                @form.Headline
+            </h1>
+
+            <p class="mb-4">
+                @form.IntroText
+            </p>
+
+            @foreach (var field in form.Fields.OrderBy(x => x.SortOrder))
+            {
+                <div class="mb-3">
+                    <label>
+                        @field.Label
+
+                        @if (field.IsRequired)
+                        {
+                            <span class="text-danger">*</span>
+                        }
+                    </label>
+
+                    @if (field.FieldType == "Textarea")
+                    {
+                        <textarea class="form-control"
+                                  rows="4"
+                                  placeholder="@field.Placeholder"></textarea>
+                    }
+                    else if (field.FieldType == "Select")
+                    {
+                        <select class="form-select">
+                            <option value="">Bitte wählen</option>
+
+                            @foreach (var option in GetOptions(field.OptionsJson))
+                            {
+                                <option>@option</option>
+                            }
+                        </select>
+                    }
+                    else if (field.FieldType == "Checkbox")
+                    {
+                        <div class="form-check mt-2">
+                            <input type="checkbox"
+                                   class="form-check-input" />
+
+                            <label class="form-check-label">
+                                @field.Placeholder
+                            </label>
+                        </div>
+                    }
+                    else
+                    {
+                        <input class="form-control"
+                               type="@GetInputType(field.FieldType)"
+                               placeholder="@field.Placeholder" />
+                    }
+                </div>
+            }
+
+            <button class="btn btn-primary" disabled>
+                Angaben senden
+            </button>
+
+        </div>
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private LeadForm? form;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        form = await db.LeadForms
+            .AsNoTracking()
+            .Include(x => x.Fields)
+            .FirstOrDefaultAsync(x => x.Id == Id);
+
+        isLoading = false;
+    }
+
+    private static string GetInputType(string fieldType)
+    {
+        return fieldType switch
+        {
+            "Email" => "email",
+            "Phone" => "tel",
+            "Date" => "date",
+            "Number" => "number",
+            _ => "text"
+        };
+    }
+
+    private static List<string> GetOptions(string? optionsJson)
+    {
+        if (string.IsNullOrWhiteSpace(optionsJson))
+        {
+            return new();
+        }
+
+        try
+        {
+            return System.Text.Json.JsonSerializer
+                .Deserialize<List<string>>(optionsJson) ?? new();
+        }
+        catch
+        {
+            return optionsJson
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .ToList();
+        }
+    }
+}

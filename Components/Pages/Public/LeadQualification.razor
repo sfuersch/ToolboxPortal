@@ -1,0 +1,476 @@
+﻿@page "/lead/q/{Token}"
+@layout PublicLayout
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+@using ToolboxPortal.Services.LeadOptimizer
+
+@inject IServiceScopeFactory ScopeFactory
+@inject LeadScoringService LeadScoringService
+@inject LeadAutomationService LeadAutomationService
+@inject CatchLeadExportService CatchLeadExportService
+
+<PageTitle>@form?.Headline</PageTitle>
+
+@if (isLoading)
+{
+    <div class="p-5">Formular wird geladen...</div>
+}
+else if (lead == null)
+{
+    <div class="p-5">Lead wurde nicht gefunden.</div>
+}
+else if (form == null)
+{
+    <div class="p-5">Qualifizierungsformular wurde nicht gefunden.</div>
+}
+else if (isSubmitted)
+{
+    <div class="lead-public-wrap">
+        <div class="lead-public-card">
+            <h1>@form.Headline</h1>
+
+            <div class="mt-4">
+                @((MarkupString)form.SuccessText)
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="lead-public-wrap">
+        <div class="lead-public-card">
+
+            <h1>@form.Headline</h1>
+
+            <div class="lead-public-intro">
+                @((MarkupString)form.IntroText)
+            </div>
+
+            @foreach (var field in fields.OrderBy(x => x.SortOrder))
+            {
+                <div class="mb-4">
+                    <label class="form-label">
+                        @field.Label
+
+                        @if (field.IsRequired)
+                        {
+                            <span class="text-danger">*</span>
+                        }
+                    </label>
+
+                    @switch (NormalizeFieldType(field.FieldType))
+                    {
+                        case "textarea":
+                            <textarea class="form-control"
+                                      rows="5"
+                                      placeholder="@field.Placeholder"
+                                      @bind="values[field.FieldKey]"></textarea>
+                            break;
+
+                        case "select":
+                            <select class="form-select"
+                                    @bind="values[field.FieldKey]">
+                                <option value="">Bitte wählen</option>
+
+                                @foreach (var option in GetOptions(field))
+                                {
+                                    <option value="@option">@option</option>
+                                }
+                            </select>
+                            break;
+
+                        case "checkbox":
+                            <div class="form-check">
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       @bind="checkboxValues[field.FieldKey]" />
+
+                                @if (!string.IsNullOrWhiteSpace(field.Placeholder))
+                                {
+                                    <label class="form-check-label">
+                                        @field.Placeholder
+                                    </label>
+                                }
+                            </div>
+                            break;
+
+                        default:
+                            <input class="form-control"
+                                   type="@GetInputType(field)"
+                                   placeholder="@field.Placeholder"
+                                   @bind="values[field.FieldKey]" />
+                            break;
+                    }
+                </div>
+            }
+
+            <button class="btn btn-primary"
+                    @onclick="SubmitForm"
+                    disabled="@isSubmitting">
+                @(isSubmitting ? "Wird gesendet..." : "Angaben senden")
+            </button>
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <div class="alert alert-info mt-4">
+                    @message
+                </div>
+            }
+
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Token { get; set; } = "";
+
+    private LeadOptimizerLead? lead;
+    private LeadForm? form;
+    private List<LeadFormField> fields = new();
+
+    private Dictionary<string, string> values = new();
+    private Dictionary<string, bool> checkboxValues = new();
+
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private bool isSubmitted;
+
+    private string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        lead = await db.LeadOptimizerLeads
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.QualificationToken == Token);
+
+        if (lead == null)
+        {
+            isLoading = false;
+            return;
+        }
+
+        form = await db.LeadForms
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.UserId == lead.UserId &&
+                x.FormKey.ToLower() == "qualification" &&
+                x.IsActive);
+
+        if (form == null)
+        {
+            isLoading = false;
+            return;
+        }
+
+        fields = await db.LeadFormFields
+            .AsNoTracking()
+            .Where(x => x.LeadFormId == form.Id)
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync();
+
+        foreach (var field in fields)
+        {
+            values[field.FieldKey] = GetLeadValue(field);
+            checkboxValues[field.FieldKey] = GetLeadBoolValue(field);
+        }
+
+        isLoading = false;
+    }
+
+    private static string NormalizeFieldType(string? fieldType)
+    {
+        return (fieldType ?? "Text")
+            .Trim()
+            .ToLowerInvariant();
+    }
+
+    private static List<string> GetOptions(LeadFormField field)
+    {
+        if (string.IsNullOrWhiteSpace(field.OptionsJson))
+        {
+            return new();
+        }
+
+        try
+        {
+            return System.Text.Json.JsonSerializer
+                .Deserialize<List<string>>(field.OptionsJson) ?? new();
+        }
+        catch
+        {
+            return field.OptionsJson
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .ToList();
+        }
+    }
+
+    private static string GetInputType(LeadFormField field)
+    {
+        return NormalizeFieldType(field.FieldType) switch
+        {
+            "email" => "email",
+            "phone" => "tel",
+            "date" => "date",
+            "number" => "number",
+            _ => "text"
+        };
+    }
+
+    private string GetLeadValue(LeadFormField field)
+    {
+        if (lead == null || string.IsNullOrWhiteSpace(field.MapsToLeadProperty))
+        {
+            return "";
+        }
+
+        return field.MapsToLeadProperty switch
+        {
+            "CustomerFirstName" => lead.CustomerFirstName ?? "",
+            "CustomerLastName" => lead.CustomerLastName ?? "",
+            "CustomerName" => lead.CustomerName ?? "",
+            "CustomerEmail" => lead.CustomerEmail ?? "",
+            "CustomerPhone" => lead.CustomerPhone ?? "",
+            "VehicleTitle" => lead.VehicleTitle ?? "",
+            "VehicleMake" => lead.VehicleMake ?? "",
+            "VehicleModel" => lead.VehicleModel ?? "",
+            "VehicleUrl" => lead.VehicleUrl ?? "",
+            "VehiclePrice" => lead.VehiclePrice?.ToString() ?? "",
+            "PurchaseTimeframe" => lead.PurchaseTimeframe ?? "",
+            "PaymentType" => lead.PaymentType ?? "",
+            "TradeInVehicle" => lead.TradeInVehicle ?? "",
+            "ContactPreference" => lead.ContactPreference ?? "",
+            "QualificationNotes" => lead.QualificationNotes ?? "",
+            "OriginalMessage" => lead.OriginalMessage ?? "",
+            _ => ""
+        };
+    }
+
+    private bool GetLeadBoolValue(LeadFormField field)
+    {
+        if (lead == null || string.IsNullOrWhiteSpace(field.MapsToLeadProperty))
+        {
+            return false;
+        }
+
+        return field.MapsToLeadProperty switch
+        {
+            "PrivacyAccepted" => lead.PrivacyAccepted,
+            "WantsTradeIn" => lead.WantsTradeIn,
+            _ => false
+        };
+    }
+
+    private async Task SubmitForm()
+    {
+        isSubmitting = true;
+        message = "";
+
+        try
+        {
+            foreach (var field in fields.Where(x => x.IsRequired))
+            {
+                var fieldType = NormalizeFieldType(field.FieldType);
+
+                if (fieldType == "checkbox")
+                {
+                    if (!checkboxValues.GetValueOrDefault(field.FieldKey))
+                    {
+                        message = $"Bitte Feld „{field.Label}“ ausfüllen.";
+                        return;
+                    }
+                }
+                else if (string.IsNullOrWhiteSpace(values.GetValueOrDefault(field.FieldKey)))
+                {
+                    message = $"Bitte Feld „{field.Label}“ ausfüllen.";
+                    return;
+                }
+            }
+
+            using var scope = ScopeFactory.CreateScope();
+
+            var db = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var dbLead = await db.LeadOptimizerLeads
+                .FirstOrDefaultAsync(x => x.QualificationToken == Token);
+
+            if (dbLead == null)
+            {
+                message = "Lead wurde nicht gefunden.";
+                return;
+            }
+
+            ApplyMappedFields(dbLead);
+
+            if (string.IsNullOrWhiteSpace(dbLead.CustomerName))
+            {
+                dbLead.CustomerName =
+                    $"{dbLead.CustomerFirstName} {dbLead.CustomerLastName}".Trim();
+            }
+
+            dbLead.Status = "Qualified";
+            dbLead.QualifiedAt = DateTime.UtcNow;
+            dbLead.UpdatedAt = DateTime.UtcNow;
+
+            LeadScoringService.CalculateScore(dbLead);
+
+            db.LeadOptimizerLeadEvents.Add(new LeadOptimizerLeadEvent
+            {
+                LeadId = dbLead.Id,
+                EventType = "qualification_completed",
+                Title = "Lead qualifiziert",
+                Description = "Interessent hat das Qualifizierungsformular ausgefüllt.",
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await db.SaveChangesAsync();
+
+            await LeadAutomationService.RunAsync(
+                "LeadQualified",
+                dbLead);
+
+            var exportTargets = await db.LeadExportTargets
+                .AsNoTracking()
+                .Where(x =>
+                    x.UserId == dbLead.UserId &&
+                    x.IsActive &&
+                    x.ExportOnQualified)
+                .ToListAsync();
+
+            foreach (var target in exportTargets)
+            {
+                try
+                {
+                    await CatchLeadExportService.ExportLeadAsync(
+                        dbLead.Id,
+                        target.Id);
+                }
+                catch
+                {
+                    // Fehler werden im CatchLeadExportService als ExportLog/Event gespeichert.
+                }
+            }
+
+            isSubmitted = true;
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void ApplyMappedFields(LeadOptimizerLead targetLead)
+    {
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.MapsToLeadProperty))
+            {
+                continue;
+            }
+
+            var fieldType = NormalizeFieldType(field.FieldType);
+
+            var value = fieldType == "checkbox"
+                ? checkboxValues.GetValueOrDefault(field.FieldKey).ToString()
+                : values.GetValueOrDefault(field.FieldKey);
+
+            switch (field.MapsToLeadProperty)
+            {
+                case "CustomerFirstName":
+                    targetLead.CustomerFirstName = value;
+                    break;
+
+                case "CustomerLastName":
+                    targetLead.CustomerLastName = value;
+                    break;
+
+                case "CustomerName":
+                    targetLead.CustomerName = value;
+                    break;
+
+                case "CustomerEmail":
+                    targetLead.CustomerEmail = value;
+                    break;
+
+                case "CustomerPhone":
+                    targetLead.CustomerPhone = value;
+                    break;
+
+                case "VehicleTitle":
+                    targetLead.VehicleTitle = value;
+                    break;
+
+                case "VehicleMake":
+                    targetLead.VehicleMake = value;
+                    break;
+
+                case "VehicleModel":
+                    targetLead.VehicleModel = value;
+                    break;
+
+                case "VehicleUrl":
+                    targetLead.VehicleUrl = value;
+                    break;
+
+                case "VehiclePrice":
+                    if (decimal.TryParse(value, out var price))
+                    {
+                        targetLead.VehiclePrice = price;
+                    }
+                    break;
+
+                case "PurchaseTimeframe":
+                    targetLead.PurchaseTimeframe = value;
+                    break;
+
+                case "PaymentType":
+                    targetLead.PaymentType = value;
+                    break;
+
+                case "TradeInVehicle":
+                    targetLead.TradeInVehicle = value;
+                    break;
+
+                case "ContactPreference":
+                    targetLead.ContactPreference = value;
+                    break;
+
+                case "QualificationNotes":
+                    targetLead.QualificationNotes = value;
+                    break;
+
+                case "OriginalMessage":
+                    targetLead.OriginalMessage = value;
+                    break;
+
+                case "PrivacyAccepted":
+                    targetLead.PrivacyAccepted =
+                        checkboxValues.GetValueOrDefault(field.FieldKey);
+
+                    if (targetLead.PrivacyAccepted)
+                    {
+                        targetLead.PrivacyAcceptedAt = DateTime.UtcNow;
+                    }
+                    break;
+
+                case "WantsTradeIn":
+                    targetLead.WantsTradeIn =
+                        checkboxValues.GetValueOrDefault(field.FieldKey);
+                    break;
+            }
+        }
+    }
+}

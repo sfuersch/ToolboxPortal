@@ -1,5 +1,6 @@
-﻿using System.Net;
-using System.Net.Mail;
+﻿using MailKit.Net.Smtp;
+using MailKit.Security;
+using MimeKit;
 using Microsoft.EntityFrameworkCore;
 using ToolboxPortal.Data;
 using ToolboxPortal.Models;
@@ -81,30 +82,42 @@ Jetzt Daten ergänzen
 </p>";
         }
 
-        using var client = new SmtpClient(
+        var message = new MimeMessage();
+
+        message.From.Add(new MailboxAddress(
+            settings.SenderName,
+            settings.SenderEmail));
+
+        message.To.Add(MailboxAddress.Parse(lead.CustomerEmail));
+
+        message.Subject = subject;
+
+        message.Body = new BodyBuilder
+        {
+            HtmlBody = body
+        }.ToMessageBody();
+
+        using var smtp = new SmtpClient();
+
+        var secureSocketOptions =
+            settings.SmtpPort == 465 || settings.SmtpPort == 4465
+                ? SecureSocketOptions.SslOnConnect
+                : settings.UseSsl
+                    ? SecureSocketOptions.StartTls
+                    : SecureSocketOptions.None;
+
+        await smtp.ConnectAsync(
             settings.SmtpHost,
-            settings.SmtpPort);
+            settings.SmtpPort,
+            secureSocketOptions);
 
-        client.EnableSsl = settings.UseSsl;
-
-        client.Credentials = new NetworkCredential(
+        await smtp.AuthenticateAsync(
             settings.SmtpUsername,
             settings.SmtpPassword);
 
-        var mail = new MailMessage
-        {
-            From = new MailAddress(
-                settings.SenderEmail,
-                settings.SenderName),
+        await smtp.SendAsync(message);
 
-            Subject = subject,
-            Body = body,
-            IsBodyHtml = true
-        };
-
-        mail.To.Add(lead.CustomerEmail);
-
-        await client.SendMailAsync(mail);
+        await smtp.DisconnectAsync(true);
 
         lead.QualificationEmailSentAt = DateTime.UtcNow;
 

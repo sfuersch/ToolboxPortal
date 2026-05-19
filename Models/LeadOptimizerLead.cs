@@ -94,4 +94,22 @@ public class LeadOptimizerLead
 
     public ICollection<LeadOptimizerLeadEvent> Events { get; set; }
     = new List<LeadOptimizerLeadEvent>();
+
+    public string? Salutation { get; set; }
+
+    public string? Company { get; set; }
+
+    public string? Street { get; set; }
+
+    public string? Zip { get; set; }
+
+    public string? City { get; set; }
+
+    public string? VehicleVin { get; set; }
+
+    public int? VehicleMileage { get; set; }
+
+    public string? VehicleFirstRegistration { get; set; }
+
+    public string? VehicleConditionType { get; set; }
 }

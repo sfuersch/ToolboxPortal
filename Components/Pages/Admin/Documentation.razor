@@ -1,0 +1,179 @@
+﻿@page "/admin/documentation"
+@attribute [Authorize(Roles = "Admin")]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Dokumentation</PageTitle>
+
+<h1 class="page-title">
+    Dokumentation
+</h1>
+
+<p class="page-subtitle">
+    Interne technische Dokumentation der Toolbox.
+</p>
+
+<div class="card p-4 mt-4">
+
+    <div class="row">
+
+        <div class="col-md-4">
+
+            <h4>Kategorien</h4>
+
+            @foreach (var category in categories)
+            {
+                <button class="btn btn-outline-secondary w-100 mb-2"
+                        @onclick="() => SelectCategory(category)">
+                    @category
+                </button>
+            }
+
+        </div>
+
+        <div class="col-md-8">
+
+            <div class="d-flex justify-content-between mb-3">
+
+                <h4>Artikel</h4>
+
+                <button class="btn btn-primary"
+                        @onclick="CreateArticle">
+                    Neuer Artikel
+                </button>
+
+            </div>
+
+            @if (!articles.Any())
+            {
+                <p>
+                    Keine Artikel vorhanden.
+                </p>
+            }
+            else
+            {
+                <table class="table">
+
+                    <thead>
+                        <tr>
+                            <th>Titel</th>
+                            <th>Kategorie</th>
+                            <th>Status</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        @foreach (var article in articles)
+                        {
+                            <tr>
+
+                                <td>@article.Title</td>
+
+                                <td>@article.Category</td>
+
+                                <td>
+                                    @if (article.IsPublished)
+                                    {
+                                        <span class="badge bg-success">
+                                            Veröffentlicht
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">
+                                            Entwurf
+                                        </span>
+                                    }
+                                </td>
+
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            @onclick="() => EditArticle(article.Id)">
+                                        Bearbeiten
+                                    </button>
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+            }
+
+        </div>
+
+    </div>
+
+</div>
+
+@code {
+
+    private List<KnowledgeBaseArticle> articles = new();
+
+    private List<string> categories = new();
+
+    private string selectedCategory = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadArticles();
+    }
+
+    private async Task LoadArticles()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        articles = await db.KnowledgeBaseArticles
+            .AsNoTracking()
+            .OrderBy(x => x.Category)
+            .ThenBy(x => x.SortOrder)
+            .ToListAsync();
+
+        categories = articles
+            .Select(x => x.Category)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+    }
+
+    private async Task SelectCategory(
+        string category)
+    {
+        selectedCategory = category;
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        articles = await db.KnowledgeBaseArticles
+            .AsNoTracking()
+            .Where(x => x.Category == category)
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync();
+    }
+
+    private void CreateArticle()
+    {
+        Navigation.NavigateTo(
+            "/admin/documentation/0");
+    }
+
+    private void EditArticle(
+    int articleId)
+    {
+        Navigation.NavigateTo(
+            $"/admin/documentation/{articleId}");
+    }
+}

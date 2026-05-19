@@ -154,8 +154,8 @@ public class CatchLeadExportService
     }
 
     private string BuildXml(
-        LeadOptimizerLead lead,
-        LeadExportTarget target)
+    LeadOptimizerLead lead,
+    LeadExportTarget target)
     {
         var xml =
             new XDocument(
@@ -181,22 +181,44 @@ public class CatchLeadExportService
                             lead.VehicleModel ?? ""),
 
                         new XElement(
+                            "firstRegistration",
+                            lead.VehicleFirstRegistration ?? ""),
+
+                        new XElement(
+                            "mileage",
+                            lead.VehicleMileage ?? 0),
+
+                        new XElement(
                             "price",
                             lead.VehiclePrice ?? 0),
 
                         new XElement(
+                            "conditionType",
+                            string.IsNullOrWhiteSpace(lead.VehicleConditionType)
+                                ? ""
+                                : lead.VehicleConditionType.ToLower()),
+
+                        new XElement(
+                            "type",
+                            "PKW"),
+
+                        new XElement(
                             "vin",
-                            "")
+                            lead.VehicleVin ?? "")
                     ),
 
                     new XElement("potentialBuyer",
 
                         new XElement(
                             "company",
-                            ""),
+                            lead.Company ?? ""),
 
                         new XElement(
                             "salutation",
+                            lead.Salutation ?? ""),
+
+                        new XElement(
+                            "title",
                             ""),
 
                         new XElement(
@@ -208,21 +230,52 @@ public class CatchLeadExportService
                             lead.CustomerLastName ?? ""),
 
                         new XElement(
+                            "street",
+                            lead.Street ?? ""),
+
+                        new XElement(
+                            "zip",
+                            lead.Zip ?? ""),
+
+                        new XElement(
+                            "city",
+                            lead.City ?? ""),
+
+                        new XElement(
                             "email",
                             lead.CustomerEmail ?? ""),
+
+                        new XElement(
+                            "additionalData",
+                            BuildAdditionalData(lead)),
 
                         new XElement(
                             "message",
                             lead.OriginalMessage ?? ""),
 
-                        new XElement(
-                            "additionalData",
-                            BuildAdditionalData(lead))
+                        new XElement("add_fields",
+                            BuildAddFields(lead))
                     ),
 
                     new XElement(
                         "subject",
                         "Lead Anfrage"),
+
+                    new XElement(
+                        "crm_dealercode",
+                        target.DealerCode ?? ""),
+
+                    new XElement(
+                        "crm_dealerid",
+                        ""),
+
+                    new XElement(
+                        "dms_dealercode",
+                        ""),
+
+                    new XElement(
+                        "locationString",
+                        ""),
 
                     new XElement(
                         "campaign_name",
@@ -233,16 +286,63 @@ public class CatchLeadExportService
                         target.LeadSource ?? ""),
 
                     new XElement(
+                        "lead_source2",
+                        ""),
+
+                    new XElement(
+                        "lead_type",
+                        "Online Lead"),
+
+                    new XElement(
                         "lead_channel",
                         target.LeadChannel ?? ""),
 
                     new XElement(
-                        "crm_dealercode",
-                        target.DealerCode ?? "")
+                        "marketing_campaign",
+                        target.CampaignName ?? ""),
+
+                    new XElement("files")
                 )
             );
 
         return xml.ToString();
+    }
+
+    private object[] BuildAddFields(
+    LeadOptimizerLead lead)
+    {
+        var fields = new List<object>();
+
+        void AddField(string key, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            fields.Add(
+                new XElement("field",
+                    new XElement("key", key),
+                    new XElement("value", value)));
+        }
+
+        AddField("Zahlungsart", lead.PaymentType);
+        AddField("Kaufzeitpunkt", lead.PurchaseTimeframe);
+        AddField("Kontaktweg", lead.ContactPreference);
+        AddField("Inzahlungnahme Fahrzeug", lead.TradeInVehicle);
+        AddField("Qualifizierungsnotiz", lead.QualificationNotes);
+        AddField("UTM Source", lead.UtmSource);
+        AddField("UTM Medium", lead.UtmMedium);
+        AddField("UTM Campaign", lead.UtmCampaign);
+        AddField("Landing Page", lead.LandingPageUrl);
+        AddField("Referrer", lead.ReferrerUrl);
+
+        if (lead.WantsTradeIn)
+        {
+            AddField("Inzahlungnahme", "Ja");
+        }
+
+        return fields.ToArray();
     }
 
     private string BuildAdditionalData(

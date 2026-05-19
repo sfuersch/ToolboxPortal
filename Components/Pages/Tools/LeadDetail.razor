@@ -72,6 +72,97 @@ else
 
             </div>
 
+            @if (!string.IsNullOrWhiteSpace(lead.Salutation)
+    || !string.IsNullOrWhiteSpace(lead.Company)
+    || !string.IsNullOrWhiteSpace(lead.Street)
+    || !string.IsNullOrWhiteSpace(lead.Zip)
+    || !string.IsNullOrWhiteSpace(lead.City))
+            {
+                <div class="card p-4 mb-4">
+                    <h3>Kundendaten</h3>
+
+                    <table class="table">
+                        @if (!string.IsNullOrWhiteSpace(lead.Salutation))
+                        {
+                            <tr>
+                                <td>Anrede</td>
+                                <td>@lead.Salutation</td>
+                            </tr>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(lead.Company))
+                        {
+                            <tr>
+                                <td>Firma</td>
+                                <td>@lead.Company</td>
+                            </tr>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(lead.Street))
+                        {
+                            <tr>
+                                <td>Straße</td>
+                                <td>@lead.Street</td>
+                            </tr>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(lead.Zip) || !string.IsNullOrWhiteSpace(lead.City))
+                        {
+                            <tr>
+                                <td>Ort</td>
+                                <td>@lead.Zip @lead.City</td>
+                            </tr>
+                        }
+                    </table>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(lead.VehicleVin)
+    || lead.VehicleMileage != null
+    || !string.IsNullOrWhiteSpace(lead.VehicleFirstRegistration)
+    || !string.IsNullOrWhiteSpace(lead.VehicleConditionType))
+            {
+                <div class="card p-4 mb-4">
+                    <h3>Erweiterte Fahrzeugdaten</h3>
+
+                    <table class="table">
+                        @if (!string.IsNullOrWhiteSpace(lead.VehicleVin))
+                        {
+                            <tr>
+                                <td>FIN / VIN</td>
+                                <td>@lead.VehicleVin</td>
+                            </tr>
+                        }
+
+                        @if (lead.VehicleMileage != null)
+                        {
+                            <tr>
+                                <td>Kilometerstand</td>
+                                <td>@lead.VehicleMileage km</td>
+                            </tr>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(lead.VehicleFirstRegistration))
+                        {
+                            <tr>
+                                <td>Erstzulassung</td>
+                                <td>@lead.VehicleFirstRegistration</td>
+                            </tr>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(lead.VehicleConditionType))
+                        {
+                            <tr>
+                                <td>Zustand</td>
+                                <td>@lead.VehicleConditionType</td>
+                            </tr>
+                        }
+                    </table>
+                </div>
+            }
+
+
+            
             <div class="card p-4 mb-4">
 
                 <h3>Original Nachricht</h3>

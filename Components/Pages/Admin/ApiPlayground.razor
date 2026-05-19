@@ -1,0 +1,116 @@
+﻿@page "/admin/api-playground"
+@attribute [Authorize(Roles = "Admin")]
+
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>API Playground</PageTitle>
+
+<h1 class="page-title">API Playground</h1>
+
+<p class="page-subtitle">
+    Testcenter für API Requests, Testleads und CRM-Exportprüfungen.
+</p>
+
+<div class="card p-4 mt-4">
+
+    <h3>Lead Inbound API testen</h3>
+
+    <p>
+        Sendet einen Testlead an <code>/api/leads/inbound</code>.
+    </p>
+
+    <textarea class="form-control"
+              rows="18"
+              @bind="leadJson"></textarea>
+
+    <button class="btn btn-primary mt-3"
+            @onclick="SendLeadRequest"
+            disabled="@isSending">
+        @(isSending ? "Sende..." : "Request senden")
+    </button>
+
+    @if (!string.IsNullOrWhiteSpace(responseText))
+    {
+        <h4 class="mt-4">Response</h4>
+
+        <pre><code>@responseText</code></pre>
+    }
+
+</div>
+
+@code {
+    private bool isSending;
+    private string responseText = "";
+
+    private string leadJson = """
+{
+  "apiKey": "lead_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "sourceType": "Website",
+  "externalLeadId": "TEST-001",
+
+  "salutation": "Herr",
+  "company": "Muster GmbH",
+  "customerFirstName": "Max",
+  "customerLastName": "Mustermann",
+  "customerName": "Max Mustermann",
+  "customerEmail": "max@example.de",
+  "customerPhone": "015112345678",
+
+  "street": "Musterstraße 1",
+  "zip": "97616",
+  "city": "Bad Neustadt",
+
+  "vehicleMake": "Ford",
+  "vehicleModel": "Explorer",
+  "vehicleTitle": "Ford Explorer Premium AWD",
+  "vehicleUrl": "https://example.de/fahrzeug",
+  "vehiclePrice": 48990,
+  "vehicleVin": "WF0XXXXXXXXXXXXXX",
+  "vehicleMileage": 12000,
+  "vehicleFirstRegistration": "05/2024",
+  "vehicleConditionType": "used",
+
+  "originalMessage": "Ich interessiere mich für das Fahrzeug.",
+
+  "utmSource": "api-playground",
+  "utmMedium": "test",
+  "utmCampaign": "lead-api-test",
+  "referrerUrl": "https://example.de",
+  "landingPageUrl": "https://example.de/landingpage"
+}
+""";
+
+    private async Task SendLeadRequest()
+    {
+        isSending = true;
+        responseText = "";
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient();
+
+            var content = new StringContent(
+                leadJson,
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            var response = await client.PostAsync(
+                "/api/leads/inbound",
+                content);
+
+            var body = await response.Content.ReadAsStringAsync();
+
+            responseText =
+                $"Status: {(int)response.StatusCode} {response.StatusCode}\n\n{body}";
+        }
+        catch (Exception ex)
+        {
+            responseText = ex.Message;
+        }
+        finally
+        {
+            isSending = false;
+        }
+    }
+}

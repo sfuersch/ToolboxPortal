@@ -1,0 +1,180 @@
+﻿@page "/admin/documentation/{ArticleId:int}"
+@attribute [Authorize(Roles = "Admin")]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Dokumentation bearbeiten</PageTitle>
+
+<h1 class="page-title">
+    Dokumentationsartikel
+</h1>
+
+<div class="card p-4 mt-4">
+
+    <div class="mb-3">
+        <label>Titel</label>
+
+        <input class="form-control"
+               @bind="article.Title" />
+    </div>
+
+    <div class="mb-3">
+        <label>Kategorie</label>
+
+        <input class="form-control"
+               @bind="article.Category" />
+    </div>
+
+    <div class="mb-3">
+        <label>Slug</label>
+
+        <input class="form-control"
+               @bind="article.Slug" />
+    </div>
+
+    <div class="mb-3">
+        <label>Sortierung</label>
+
+        <InputNumber class="form-control"
+                     @bind-Value="article.SortOrder" />
+    </div>
+
+    <div class="form-check mb-4">
+
+        <InputCheckbox class="form-check-input"
+                       @bind-Value="article.IsPublished" />
+
+        <label class="form-check-label">
+            Veröffentlicht
+        </label>
+
+    </div>
+
+    <div class="mb-3">
+
+        <label>Inhalt</label>
+
+        <textarea id="kb-editor"></textarea>
+
+    </div>
+
+    <div class="d-flex gap-2">
+
+        <button class="btn btn-primary"
+                @onclick="Save">
+            Speichern
+        </button>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            Zurück
+        </button>
+
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="alert alert-info mt-4">
+            @message
+        </div>
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public int ArticleId { get; set; }
+
+    private KnowledgeBaseArticle article = new();
+
+    private string message = "";
+
+    private bool shouldInitEditor;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        if (ArticleId == 0)
+        {
+            article = new KnowledgeBaseArticle
+            {
+                Category = "Allgemein",
+                Slug = Guid.NewGuid().ToString("N")
+            };
+        }
+        else
+        {
+            article = await db.KnowledgeBaseArticles
+                .FirstOrDefaultAsync(x => x.Id == ArticleId)
+                ?? new KnowledgeBaseArticle();
+        }
+
+        shouldInitEditor = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(
+        bool firstRender)
+    {
+        if (!shouldInitEditor)
+        {
+            return;
+        }
+
+        shouldInitEditor = false;
+
+        await JS.InvokeVoidAsync(
+            "templateEditor.init",
+            "kb-editor");
+
+        await JS.InvokeVoidAsync(
+            "templateEditor.setContent",
+            "kb-editor",
+            article.ContentHtml ?? "");
+    }
+
+    private async Task Save()
+    {
+        article.ContentHtml =
+            await JS.InvokeAsync<string>(
+                "templateEditor.getContent",
+                "kb-editor");
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        if (article.Id == 0)
+        {
+            article.CreatedAt = DateTime.UtcNow;
+
+            db.KnowledgeBaseArticles.Add(article);
+        }
+        else
+        {
+            article.UpdatedAt = DateTime.UtcNow;
+
+            db.KnowledgeBaseArticles.Update(article);
+        }
+
+        await db.SaveChangesAsync();
+
+        message = "Artikel gespeichert.";
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/admin/documentation");
+    }
+}

@@ -1,0 +1,142 @@
+﻿@page "/admin/api-documentation"
+@attribute [Authorize(Roles = "Admin")]
+
+<PageTitle>API Dokumentation</PageTitle>
+
+<h1 class="page-title">API Dokumentation</h1>
+
+<p class="page-subtitle">
+    Technische Referenz für externe Schnittstellen der Toolbox.
+</p>
+
+<div class="card p-4 mt-4">
+
+    <h2>Lead Inbound API</h2>
+
+    <p>
+        Über diese API können externe Systeme Leads an die Toolbox übergeben.
+    </p>
+
+    <h4>Endpoint</h4>
+
+    <pre><code>POST /api/leads/inbound</code></pre>
+
+    <h4>Authentifizierung</h4>
+
+    <p>
+        Die Authentifizierung erfolgt über den API-Key einer aktiven Leadquelle.
+    </p>
+
+    <pre><code>{
+  "apiKey": "lead_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+}</code></pre>
+
+    <h4>Beispiel Request</h4>
+
+    <pre><code>{
+  "apiKey": "lead_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "sourceType": "Website",
+  "externalLeadId": "WEB-12345",
+
+  "salutation": "Herr",
+  "company": "Muster GmbH",
+  "customerFirstName": "Max",
+  "customerLastName": "Mustermann",
+  "customerName": "Max Mustermann",
+  "customerEmail": "max@example.de",
+  "customerPhone": "015112345678",
+
+  "street": "Musterstraße 1",
+  "zip": "97616",
+  "city": "Bad Neustadt",
+
+  "vehicleMake": "Ford",
+  "vehicleModel": "Explorer",
+  "vehicleTitle": "Ford Explorer Premium AWD",
+  "vehicleUrl": "https://example.de/fahrzeug",
+  "vehiclePrice": 48990,
+  "vehicleVin": "WF0XXXXXXXXXXXXXX",
+  "vehicleMileage": 12000,
+  "vehicleFirstRegistration": "05/2024",
+  "vehicleConditionType": "used",
+
+  "originalMessage": "Ich interessiere mich für das Fahrzeug.",
+
+  "utmSource": "google",
+  "utmMedium": "cpc",
+  "utmCampaign": "ford-explorer",
+  "referrerUrl": "https://google.de",
+  "landingPageUrl": "https://example.de/landingpage"
+}</code></pre>
+
+    <h4>Beispiel cURL</h4>
+
+    <pre><code>curl -X POST https://toolbox.promotekk.com/api/leads/inbound \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apiKey": "lead_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "sourceType": "Website",
+    "customerFirstName": "Max",
+    "customerLastName": "Mustermann",
+    "customerEmail": "max@example.de",
+    "customerPhone": "015112345678",
+    "vehicleTitle": "Ford Explorer",
+    "originalMessage": "Bitte um Rückruf."
+  }'</code></pre>
+
+    <h4>Erfolgreiche Antwort</h4>
+
+    <pre><code>{
+  "id": 123,
+  "qualificationToken": "abc123...",
+  "qualificationUrl": "https://toolbox.promotekk.com/lead/q/abc123..."
+}</code></pre>
+
+</div>
+
+<div class="card p-4 mt-4">
+
+    <h2>CATCH CRM Export</h2>
+
+    <p>
+        Qualifizierte Leads können als XML-Mail an CATCH CRM übergeben werden.
+    </p>
+
+    <h4>Betreff</h4>
+
+    <pre><code>CATCH LEADS XML API</code></pre>
+
+    <h4>XML-Struktur</h4>
+
+    <pre><code>&lt;lead&gt;
+  &lt;vehicle&gt;
+    &lt;internalId&gt;...&lt;/internalId&gt;
+    &lt;make&gt;Ford&lt;/make&gt;
+    &lt;model&gt;Explorer&lt;/model&gt;
+    &lt;firstRegistration&gt;05/2024&lt;/firstRegistration&gt;
+    &lt;mileage&gt;12000&lt;/mileage&gt;
+    &lt;price&gt;48990&lt;/price&gt;
+    &lt;conditionType&gt;used&lt;/conditionType&gt;
+    &lt;type&gt;PKW&lt;/type&gt;
+    &lt;vin&gt;WF0XXXXXXXXXXXXXX&lt;/vin&gt;
+  &lt;/vehicle&gt;
+
+  &lt;potentialBuyer&gt;
+    &lt;company&gt;Muster GmbH&lt;/company&gt;
+    &lt;salutation&gt;Herr&lt;/salutation&gt;
+    &lt;firstname&gt;Max&lt;/firstname&gt;
+    &lt;lastname&gt;Mustermann&lt;/lastname&gt;
+    &lt;street&gt;Musterstraße 1&lt;/street&gt;
+    &lt;zip&gt;97616&lt;/zip&gt;
+    &lt;city&gt;Bad Neustadt&lt;/city&gt;
+    &lt;email&gt;max@example.de&lt;/email&gt;
+    &lt;message&gt;Ich interessiere mich für das Fahrzeug.&lt;/message&gt;
+  &lt;/potentialBuyer&gt;
+
+  &lt;subject&gt;Lead Anfrage&lt;/subject&gt;
+  &lt;campaign_name&gt;Website Leads&lt;/campaign_name&gt;
+  &lt;lead_source&gt;Website&lt;/lead_source&gt;
+  &lt;lead_channel&gt;Online&lt;/lead_channel&gt;
+&lt;/lead&gt;</code></pre>
+
+</div>

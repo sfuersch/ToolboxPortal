@@ -49,6 +49,9 @@ namespace ToolboxPortal.Data
 
         public DbSet<LeadExportLog> LeadExportLogs => Set<LeadExportLog>();
 
+        public DbSet<KnowledgeBaseArticle> KnowledgeBaseArticles
+    => Set<KnowledgeBaseArticle>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

@@ -66,6 +66,17 @@ public class LeadInboundController : ControllerBase
             VehicleUrl = request.VehicleUrl,
             VehiclePrice = request.VehiclePrice,
 
+            Salutation = request.Salutation,
+            Company = request.Company,
+            Street = request.Street,
+            Zip = request.Zip,
+            City = request.City,
+
+            VehicleVin = request.VehicleVin,
+            VehicleMileage = request.VehicleMileage,
+            VehicleFirstRegistration = request.VehicleFirstRegistration,
+            VehicleConditionType = request.VehicleConditionType,
+
             OriginalMessage = request.OriginalMessage,
 
             UtmSource = request.UtmSource,

@@ -43,4 +43,22 @@ public class LeadInboundRequest
     public string? ReferrerUrl { get; set; }
 
     public string? LandingPageUrl { get; set; }
+
+    public string? Salutation { get; set; }
+
+    public string? Company { get; set; }
+
+    public string? Street { get; set; }
+
+    public string? Zip { get; set; }
+
+    public string? City { get; set; }
+
+    public string? VehicleVin { get; set; }
+
+    public int? VehicleMileage { get; set; }
+
+    public string? VehicleFirstRegistration { get; set; }
+
+    public string? VehicleConditionType { get; set; }
 }

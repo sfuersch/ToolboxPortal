@@ -40,6 +40,8 @@ namespace ToolboxPortal.Data
 
         public DbSet<LeadEmailSettings> LeadEmailSettings => Set<LeadEmailSettings>();
 
+        public DbSet<LeadMailTemplate> LeadMailTemplates => Set<LeadMailTemplate>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

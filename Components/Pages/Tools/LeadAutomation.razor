@@ -8,7 +8,7 @@
 @using System.Security.Claims
 
 @inject IServiceScopeFactory ScopeFactory
-
+@inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Lead Automationen</PageTitle>
@@ -28,7 +28,7 @@
     </button>
 
     <button class="tool-tab @(activeTab == "mail" ? "active" : "")"
-            @onclick='() => activeTab = "mail"'>
+            @onclick='() => SetActiveTab("mail")'>
 
         Mail-Automationen
 
@@ -378,6 +378,125 @@
     <div class="card p-4 mt-4">
 
         <h3 class="mb-4">
+            Mail-Vorlagen
+        </h3>
+
+        <div class="border rounded p-3 mb-4">
+
+            <div class="row">
+
+                <div class="col-md-6 mb-3">
+                    <label>Name</label>
+
+                    <input class="form-control"
+                           placeholder="z. B. Qualifizierungs-Mail"
+                           @bind="mailTemplate.Name" />
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label>Vorlagentyp</label>
+
+                    <select class="form-select"
+                            @bind="mailTemplate.TemplateKey">
+
+                        <option value="QualificationMail">Qualifizierungs-Mail</option>
+                        <option value="FollowUp1">Follow-up 1</option>
+                        <option value="FollowUp2">Follow-up 2</option>
+                        <option value="SalesNotification">Verkäufer-Benachrichtigung</option>
+
+                    </select>
+                </div>
+
+            </div>
+
+            <div class="mb-3">
+                <label>Betreff</label>
+
+                <input class="form-control"
+                       placeholder="Ihre Fahrzeuganfrage"
+                       @bind="mailTemplate.Subject" />
+            </div>
+
+            <div class="mb-3">
+                <label>Inhalt</label>
+
+                <textarea id="lead-template-editor"
+                      class="form-control"
+                          rows="12">
+            </textarea>
+            </div>
+
+            <div class="alert alert-light">
+                Verfügbare Platzhalter:
+                <br />
+                <code>{FirstName}</code>
+                <code>{LastName}</code>
+                <code>{FullName}</code>
+                <code>{VehicleTitle}</code>
+                <code>{QualificationUrl}</code>
+                <code>{CurrentDate}</code>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="SaveMailTemplate">
+                Vorlage speichern
+            </button>
+
+            @if (!string.IsNullOrWhiteSpace(templateMessage))
+            {
+                <div class="alert alert-info mt-3">
+                    @templateMessage
+                </div>
+            }
+
+        </div>
+
+        @if (!mailTemplates.Any())
+        {
+            <p>Noch keine Mail-Vorlagen vorhanden.</p>
+        }
+        else
+        {
+            <table class="table">
+
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Typ</th>
+                        <th>Betreff</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var template in mailTemplates)
+                    {
+                        <tr>
+                            <td>@template.Name</td>
+                            <td>@template.TemplateKey</td>
+                            <td>@template.Subject</td>
+                            <td>
+                                @if (template.IsActive)
+                                {
+                                    <span class="badge bg-success">Aktiv</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inaktiv</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+
+            </table>
+        }
+
+    </div>
+    
+    <div class="card p-4 mt-4">
+
+        <h3 class="mb-4">
             SMTP / Mailversand
         </h3>
 
@@ -501,6 +620,7 @@
         await LoadRules();
         await LoadSources();
         await LoadEmailSettings();
+        await LoadMailTemplates();
     }
 
     private async Task<string?> GetCurrentUserIdAsync()
@@ -510,6 +630,19 @@
 
         return authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
     }
+    
+    private async Task SetActiveTab(string tab)
+    {
+        activeTab = tab;
+
+        if (tab == "mail")
+        {
+            tinyInitialized = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+    
     private async Task LoadRules()
     {
         var userId = await GetCurrentUserIdAsync();
@@ -531,6 +664,100 @@
             .ToListAsync();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (activeTab != "mail" || tinyInitialized)
+        {
+            return;
+        }
+
+        try
+        {
+            tinyInitialized = true;
+
+            await JS.InvokeVoidAsync(
+                "templateEditor.init",
+                "lead-template-editor");
+        }
+        catch
+        {
+            tinyInitialized = false;
+        }
+    }
+    
+    private async Task LoadMailTemplates()
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        mailTemplates = await db.LeadMailTemplates
+            .AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private async Task SaveMailTemplate()
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            templateMessage = "Benutzer nicht gefunden.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(mailTemplate.Name))
+        {
+            templateMessage = "Bitte einen Namen für die Vorlage eingeben.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(mailTemplate.Subject))
+        {
+            templateMessage = "Bitte einen Betreff eingeben.";
+            return;
+        }
+
+        mailTemplate.HtmlBody =
+            await JS.InvokeAsync<string>("templateEditor.getContent", "lead-template-editor");
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        mailTemplate.UserId = userId;
+        mailTemplate.CreatedAt = DateTime.UtcNow;
+        mailTemplate.UpdatedAt = DateTime.UtcNow;
+        mailTemplate.IsActive = true;
+
+        db.LeadMailTemplates.Add(mailTemplate);
+
+        await db.SaveChangesAsync();
+
+        templateMessage = "Mail-Vorlage wurde gespeichert.";
+
+        mailTemplate = new LeadMailTemplate
+        {
+            TemplateKey = "QualificationMail",
+            IsActive = true
+        };
+
+        await JS.InvokeVoidAsync("templateEditor.setContent", "lead-template-editor", "");
+
+        await LoadMailTemplates();
+    }
+    
     private async Task ToggleRule(int ruleId)
     {
         using var scope = ScopeFactory.CreateScope();
@@ -750,6 +977,19 @@
         await LoadSources();
     }
 
+    
+
+    private List<LeadMailTemplate> mailTemplates = new();
+
+    private LeadMailTemplate mailTemplate = new()
+    {
+        TemplateKey = "QualificationMail",
+        IsActive = true
+    };
+
+    private string templateMessage = "";
+    private bool tinyInitialized = false;
+    
     private async Task LoadEmailSettings()
     {
         using var scope = ScopeFactory.CreateScope();

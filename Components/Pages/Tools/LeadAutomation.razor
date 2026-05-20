@@ -1994,7 +1994,7 @@
             return;
         }
 
-        newSource.UserId = user.Id;
+        newSource.UserId = userId;
         newSource.TenantId = tenantId.Value;
 
         db.LeadSources.Add(newSource);

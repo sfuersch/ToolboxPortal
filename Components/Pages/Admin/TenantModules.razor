@@ -1,0 +1,166 @@
+﻿@page "/admin/tenants/{TenantId:int}/modules"
+@attribute [Authorize(Roles = "SuperAdmin")]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Mandantenmodule</PageTitle>
+
+<a class="btn btn-outline-secondary mb-3"
+       href="/admin/tenants">
+    ← Zurück zu Mandanten
+</a>
+
+@if (isLoading)
+{
+    <p>Lade Module...</p>
+}
+else if (tenant == null)
+{
+    <div class="alert alert-danger">
+        Mandant nicht gefunden.
+    </div>
+}
+else
+{
+    <h1 class="page-title">
+        Module für @tenant.Name
+    </h1>
+
+    <div class="card p-4 mt-4">
+
+        @foreach (var module in availableModules)
+        {
+            <div class="d-flex justify-content-between align-items-center border-bottom py-3">
+
+                <div>
+                    <strong>@module.Name</strong>
+                    <div class="text-muted small">
+                        @module.Key
+                    </div>
+                </div>
+
+                <div class="form-check form-switch">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           checked="@IsModuleEnabled(module.Key)"
+                           @onchange="e => ToggleModule(module.Key, e)" />
+                </div>
+
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="alert alert-info mt-3">
+                @message
+            </div>
+        }
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int TenantId { get; set; }
+
+    private Tenant? tenant;
+    private bool isLoading = true;
+    private string message = "";
+
+    private List<TenantModuleAccess> accesses = new();
+
+    private readonly List<AvailableModule> availableModules =
+    [
+        new("ai-tool", "KI Tools"),
+        new("thg-followup", "THG-Prämie Follow-up"),
+        new("lead-optimizer", "Lead Optimierung")
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        tenant = await db.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == TenantId);
+
+        accesses = await db.TenantModuleAccesses
+            .AsNoTracking()
+            .Where(x => x.TenantId == TenantId)
+            .ToListAsync();
+
+        isLoading = false;
+    }
+
+    private bool IsModuleEnabled(string moduleKey)
+    {
+        return accesses.Any(x =>
+            x.ModuleKey == moduleKey &&
+            x.IsEnabled);
+    }
+
+    private async Task ToggleModule(
+        string moduleKey,
+        ChangeEventArgs e)
+    {
+        var enabled =
+            e.Value is bool boolValue && boolValue;
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var access = await db.TenantModuleAccesses
+            .FirstOrDefaultAsync(x =>
+                x.TenantId == TenantId &&
+                x.ModuleKey == moduleKey);
+
+        if (access == null)
+        {
+            access = new TenantModuleAccess
+            {
+                TenantId = TenantId,
+                ModuleKey = moduleKey,
+                IsEnabled = enabled,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            db.TenantModuleAccesses.Add(access);
+        }
+        else
+        {
+            access.IsEnabled = enabled;
+            access.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync();
+
+        message = "Modulfreigabe gespeichert.";
+
+        await LoadData();
+    }
+
+    private class AvailableModule(
+        string key,
+        string name)
+    {
+        public string Key { get; set; } = key;
+
+        public string Name { get; set; } = name;
+    }
+}

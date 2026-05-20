@@ -91,10 +91,15 @@
                             }
                         </td>
                         <td>
+                            <a class="btn btn-sm btn-outline-primary"
+                                   href="/admin/tenants/@tenant.Id/modules">
+                                Module
+                            </a>
                             <button class="btn btn-sm btn-outline-secondary"
                                     @onclick="() => ToggleTenant(tenant.Id)">
                                 @(tenant.IsActive ? "Deaktivieren" : "Aktivieren")
                             </button>
+
                         </td>
                     </tr>
                 }

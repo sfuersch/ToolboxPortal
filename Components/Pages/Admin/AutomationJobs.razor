@@ -1,0 +1,148 @@
+﻿@page "/admin/automation-jobs"
+@attribute [Authorize(Roles = "Admin")]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+
+<PageTitle>Automation Jobs</PageTitle>
+
+<h1 class="page-title">Automation Jobs</h1>
+
+<p class="page-subtitle">
+    Überwachung der asynchronen Hintergrundverarbeitung.
+</p>
+
+<div class="card p-4 mt-4">
+
+    <div class="d-flex gap-2 mb-3">
+        <button class="btn btn-outline-secondary"
+                @onclick="LoadJobs">
+            Aktualisieren
+        </button>
+    </div>
+
+    @if (!jobs.Any())
+    {
+        <p>Keine Jobs vorhanden.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Typ</th>
+                    <th>Lead</th>
+                    <th>Status</th>
+                    <th>Retries</th>
+                    <th>Erstellt</th>
+                    <th>Gestartet</th>
+                    <th>Beendet</th>
+                    <th>Fehler</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var job in jobs)
+                {
+                    <tr>
+                        <td>@job.Id</td>
+                        <td>@job.JobType</td>
+                        <td>
+                            <a href="/tools/lead-optimizer/leads/@job.LeadId">
+                                @job.LeadId
+                            </a>
+                        </td>
+                        <td>
+                            @if (job.Status == "Completed")
+                            {
+                                <span class="badge bg-success">Completed</span>
+                            }
+                            else if (job.Status == "Failed")
+                            {
+                                <span class="badge bg-danger">Failed</span>
+                            }
+                            else if (job.Status == "Running")
+                            {
+                                <span class="badge bg-warning text-dark">Running</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">@job.Status</span>
+                            }
+                        </td>
+                        <td>@job.RetryCount</td>
+                        <td>@job.CreatedAt.ToLocalTime()</td>
+                        <td>@job.StartedAt?.ToLocalTime()</td>
+                        <td>@job.FinishedAt?.ToLocalTime()</td>
+                        <td style="max-width:320px;">
+                            <small>@job.ErrorMessage</small>
+                        </td>
+                        <td>
+                            @if (job.Status == "Failed")
+                            {
+                                <button class="btn btn-sm btn-outline-primary"
+                                        @onclick="() => RetryJob(job.Id)">
+                                    Retry
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+</div>
+
+@code {
+    private List<AutomationJob> jobs = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobs();
+    }
+
+    private async Task LoadJobs()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        jobs = await db.AutomationJobs
+            .AsNoTracking()
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync();
+    }
+
+    private async Task RetryJob(int jobId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var job = await db.AutomationJobs
+            .FirstOrDefaultAsync(x => x.Id == jobId);
+
+        if (job == null)
+        {
+            return;
+        }
+
+        job.Status = "Pending";
+        job.ErrorMessage = null;
+        job.StartedAt = null;
+        job.FinishedAt = null;
+
+        await db.SaveChangesAsync();
+
+        await LoadJobs();
+    }
+}

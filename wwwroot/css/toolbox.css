@@ -1196,3 +1196,14 @@ a {
     margin-bottom: 30px;
     color: #555;
 }
+.pipeline-card {
+    cursor: grab;
+}
+
+    .pipeline-card:active {
+        cursor: grabbing;
+    }
+
+.pipeline-column {
+    min-height: 300px;
+}

@@ -72,6 +72,27 @@ else
 
             </div>
 
+            @if (lead.Status == "ExportedToCrm")
+            {
+                <div class="alert alert-primary mb-4">
+
+                    <strong>CRM Export aktiv</strong>
+
+                    <div class="mt-2">
+                        Dieser Lead wurde erfolgreich an das CRM exportiert.
+                    </div>
+
+                    @if (lead.ExportedAt != null)
+                    {
+                        <div class="mt-2 small">
+                            Exportiert am:
+                            @lead.ExportedAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                        </div>
+                    }
+
+                </div>
+            }
+
             @if (!string.IsNullOrWhiteSpace(lead.Salutation)
     || !string.IsNullOrWhiteSpace(lead.Company)
     || !string.IsNullOrWhiteSpace(lead.Street)
@@ -704,6 +725,7 @@ else
     "New",
     "email_sent",
     "Qualified",
+    "ExportedToCrm",
     "Contacted",
     "Appointment",
     "OfferSent",

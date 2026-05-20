@@ -55,7 +55,8 @@
         Scoring
     </button>
 
-    <button class="tool-tab">
+    <button class="tool-tab @(activeTab == "logs" ? "active" : "")"
+            @onclick='() => SetActiveTab("logs")'>
         Logs
     </button>
 </div>
@@ -907,6 +908,161 @@
 
 }
 
+@if (activeTab == "logs")
+{
+    <div class="card p-4 mt-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3>Logs</h3>
+
+            <button class="btn btn-outline-secondary"
+                    @onclick="LoadLogs">
+                Aktualisieren
+            </button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(logMessage))
+        {
+            <div class="alert alert-info">
+                @logMessage
+            </div>
+        }
+
+        <h4>Export Logs</h4>
+
+        @if (!exportLogs.Any())
+        {
+            <p>Noch keine Exportlogs vorhanden.</p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Zeitpunkt</th>
+                        <th>Lead</th>
+                        <th>Typ</th>
+                        <th>Status</th>
+                        <th>Antwort</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var log in exportLogs)
+                    {
+                        <tr>
+                            <td>@log.CreatedAt.ToLocalTime()</td>
+                            <td>
+                                <a href="/tools/lead-optimizer/leads/@log.LeadId">
+                                    @log.LeadId
+                                </a>
+                            </td>
+                            <td>@log.ExportType</td>
+                            <td>
+                                @if (log.Success)
+                                {
+                                    <span class="badge bg-success">Erfolgreich</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Fehler</span>
+                                }
+                            </td>
+                            <td>
+                                <small>@log.ResponseMessage</small>
+                            </td>
+                        </tr>
+
+                        @if (!string.IsNullOrWhiteSpace(log.RequestPayload))
+                        {
+                            <tr>
+                                <td colspan="5">
+                                    <details>
+                                        <summary>Payload anzeigen</summary>
+                                        <pre class="mt-2"><code>@log.RequestPayload</code></pre>
+                                    </details>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+
+        <h4>Automation Jobs</h4>
+
+        @if (!automationJobs.Any())
+        {
+            <p>Noch keine Automation-Jobs vorhanden.</p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Zeitpunkt</th>
+                        <th>Lead</th>
+                        <th>Typ</th>
+                        <th>Status</th>
+                        <th>Retries</th>
+                        <th>Fehler</th>
+                        <th>Aktion</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var job in automationJobs)
+                    {
+                        <tr>
+                            <td>@job.CreatedAt.ToLocalTime()</td>
+                            <td>
+                                <a href="/tools/lead-optimizer/leads/@job.LeadId">
+                                    @job.LeadId
+                                </a>
+                            </td>
+                            <td>@job.JobType</td>
+                            <td>
+                                @if (job.Status == "Completed")
+                                {
+                                    <span class="badge bg-success">Completed</span>
+                                }
+                                else if (job.Status == "Failed")
+                                {
+                                    <span class="badge bg-danger">Failed</span>
+                                }
+                                else if (job.Status == "Running")
+                                {
+                                    <span class="badge bg-warning text-dark">Running</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">@job.Status</span>
+                                }
+                            </td>
+                            <td>@job.RetryCount</td>
+                            <td>
+                                <small>@job.ErrorMessage</small>
+                            </td>
+                            <td>
+                                @if (job.Status == "Failed")
+                                {
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            @onclick="() => RetryAutomationJob(job.Id)">
+                                        Retry
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+    </div>
+}
+
 @code {
 
     private List<LeadAutomationRule> rules = new();
@@ -924,6 +1080,9 @@
     private LeadEmailSettings emailSettings = new();
     private int? editingFormId;
     private int? editingExportTargetId;
+    private List<LeadExportLog> exportLogs = new();
+    private List<AutomationJob> automationJobs = new();
+    private string logMessage = "";
 
     private List<LeadForm> leadForms = new();
 
@@ -967,6 +1126,7 @@
         await LoadMailTemplates();
         await LoadForms();
         await LoadExportTargets();
+        await LoadLogs();
     }
 
     private async Task<string?> GetCurrentUserIdAsync()
@@ -1223,6 +1383,64 @@
             .Where(x => x.UserId == userId)
             .OrderBy(x => x.Name)
             .ToListAsync();
+    }
+
+    private async Task LoadLogs()
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        exportLogs = await db.LeadExportLogs
+            .AsNoTracking()
+            .Where(x => db.LeadOptimizerLeads
+                .Any(l => l.Id == x.LeadId && l.UserId == userId))
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync();
+
+        automationJobs = await db.AutomationJobs
+            .AsNoTracking()
+            .Where(x => db.LeadOptimizerLeads
+                .Any(l => l.Id == x.LeadId && l.UserId == userId))
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync();
+    }
+
+    private async Task RetryAutomationJob(int jobId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var job = await db.AutomationJobs
+            .FirstOrDefaultAsync(x => x.Id == jobId);
+
+        if (job == null)
+        {
+            return;
+        }
+
+        job.Status = "Pending";
+        job.ErrorMessage = null;
+        job.StartedAt = null;
+        job.FinishedAt = null;
+
+        await db.SaveChangesAsync();
+
+        logMessage = "Job wurde erneut eingeplant.";
+
+        await LoadLogs();
     }
 
     private async Task SaveExportTarget()

@@ -1,0 +1,470 @@
+﻿@page "/tools/lead-optimizer/pipeline"
+@attribute [Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Lead Pipeline</PageTitle>
+
+<h1 class="page-title">
+    Lead Pipeline
+</h1>
+
+<p class="page-subtitle">
+    Vertriebsübersicht aller Leads.
+</p>
+
+@if (isLoading)
+{
+    <p>Lade Pipeline...</p>
+}
+else
+{
+    <div class="pipeline-board">
+
+        @foreach (var column in columns)
+        {
+            <div class="pipeline-column"
+                 @ondragover:preventDefault
+                 @ondrop="() => DropLead(column.Status)">
+
+                <div class="pipeline-column-header">
+                    <h4>@column.Title</h4>
+
+                    <span class="badge bg-secondary">
+                        @GetLeads(column.Status).Count
+                    </span>
+                </div>
+
+                @foreach (var lead in GetLeads(column.Status))
+                {
+                    <div class="pipeline-card @GetScoreClass(lead.Score)"
+                         draggable="true"
+                         @ondragstart="() => StartDrag(lead.Id)">
+
+                        <div class="pipeline-score">
+
+                            @lead.Score
+
+                            @if (lead.Score >= 80)
+                            {
+                                <span>🔥</span>
+                            }
+                            else if (lead.Score >= 60)
+                            {
+                                <span>🟠</span>
+                            }
+                            else if (lead.Score >= 40)
+                            {
+                                <span>🟡</span>
+                            }
+
+                        </div>
+
+                        <div class="pipeline-name">
+                            @lead.CustomerName
+                        </div>
+
+                        <div class="pipeline-vehicle">
+                            @lead.VehicleTitle
+                        </div>
+
+                        @if (GetOpenTaskCount(lead.Id) > 0)
+                        {
+                            <div class="pipeline-task-badge">
+                                📅 @GetOpenTaskCount(lead.Id) offene Aufgabe@(GetOpenTaskCount(lead.Id) == 1 ? "" : "n")
+                            </div>
+                        }
+                        <div class="pipeline-last-activity">
+                            ⏱ @GetLastActivityText(lead.Id)
+                        </div>
+                        <div class="pipeline-meta">
+                            @lead.SourceType
+                        </div>
+
+                        <div class="pipeline-meta">
+                            @lead.CreatedAt
+                            
+                        </div>
+
+                        <div class="d-flex gap-2 mt-3">
+
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => MoveBack(lead)">
+                                ←
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-primary"
+                                    @onclick="() => OpenLead(lead.Id)">
+                                Details
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-success"
+                                    @onclick="() => MoveForward(lead)">
+                                →
+                            </button>
+
+                        </div>
+
+                    </div>
+                }
+
+            </div>
+        }
+
+    </div>
+}
+
+<style>
+
+    .pipeline-board {
+        display: flex;
+        gap: 20px;
+        overflow-x: auto;
+        padding-bottom: 20px;
+    }
+
+    .pipeline-column {
+        min-width: 320px;
+        background: #f7f7f7;
+        border-radius: 12px;
+        padding: 16px;
+    }
+
+    .pipeline-column-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .pipeline-task-badge {
+        margin-top: 10px;
+        display: inline-block;
+        background: #fff3cd;
+        color: #664d03;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .pipeline-card {
+        background: white;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+
+        .pipeline-card.hot {
+            border-left: 6px solid #dc3545;
+        }
+
+        .pipeline-card.warm {
+            border-left: 6px solid #fd7e14;
+        }
+
+        .pipeline-card.medium {
+            border-left: 6px solid #ffc107;
+        }
+
+        .pipeline-card.cold {
+            border-left: 6px solid #6c757d;
+        }
+
+    .pipeline-score {
+        font-size: 28px;
+        font-weight: bold;
+    }
+
+    .pipeline-name {
+        font-size: 18px;
+        font-weight: 600;
+        margin-top: 8px;
+    }
+
+    .pipeline-last-activity {
+        margin-top: 10px;
+        color: #666;
+        font-size: 12px;
+    }
+
+    .pipeline-vehicle {
+        margin-top: 8px;
+    }
+
+    .pipeline-meta {
+        color: #666;
+        font-size: 13px;
+        margin-top: 4px;
+    }
+
+</style>
+
+@code {
+
+    private bool isLoading = true;
+
+    private List<LeadOptimizerLead> leads = new();
+
+    private int? draggedLeadId;
+
+    private Dictionary<int, DateTime> lastActivityMap = new();
+
+    private Dictionary<int, int> openTaskCounts = new();
+
+    private readonly List<PipelineColumn> columns =
+    [
+        new("New", "Neu"),
+        new("Qualified", "Qualifiziert"),
+        new("ExportedToCrm", "Im CRM"),
+        new("Contacted", "Kontaktiert"),
+        new("Appointment", "Termin"),
+        new("OfferSent", "Angebot"),
+        new("Negotiation", "Verhandlung"),
+        new("Won", "Gewonnen"),
+        new("Lost", "Verloren")
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLeads();
+    }
+
+    private async Task LoadLeads()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        leads = await db.LeadOptimizerLeads
+            .AsNoTracking()
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        openTaskCounts = await db.LeadOptimizerTasks
+            .AsNoTracking()
+            .Where(x => !x.IsCompleted)
+            .GroupBy(x => x.LeadId)
+            .Select(x => new
+            {
+                LeadId = x.Key,
+                Count = x.Count()
+            })
+            .ToDictionaryAsync(
+                x => x.LeadId,
+                x => x.Count);
+
+        lastActivityMap = await db.LeadOptimizerLeadEvents
+            .AsNoTracking()
+            .GroupBy(x => x.LeadId)
+            .Select(x => new
+            {
+                LeadId = x.Key,
+                LastActivity = x.Max(e => e.CreatedAt)
+            })
+            .ToDictionaryAsync(
+                x => x.LeadId,
+                x => x.LastActivity);
+
+        isLoading = false;
+    }
+
+    private List<LeadOptimizerLead> GetLeads(
+        string status)
+    {
+        return leads
+            .Where(x => x.Status == status)
+            .ToList();
+    }
+
+    private async Task MoveForward(
+        LeadOptimizerLead lead)
+    {
+        var currentIndex =
+            columns.FindIndex(x => x.Status == lead.Status);
+
+        if (currentIndex < 0
+            || currentIndex >= columns.Count - 1)
+        {
+            return;
+        }
+
+        await UpdateLeadStatus(
+            lead,
+            columns[currentIndex + 1].Status);
+    }
+
+    private int GetOpenTaskCount(int leadId)
+    {
+        return openTaskCounts.TryGetValue(leadId, out var count)
+            ? count
+            : 0;
+
+    }
+
+    private async Task MoveBack(
+        LeadOptimizerLead lead)
+    {
+        var currentIndex =
+            columns.FindIndex(x => x.Status == lead.Status);
+
+        if (currentIndex <= 0)
+        {
+            return;
+        }
+
+        await UpdateLeadStatus(
+            lead,
+            columns[currentIndex - 1].Status);
+    }
+
+    private void StartDrag(int leadId)
+    {
+        draggedLeadId = leadId;
+    }
+
+    private string GetScoreClass(
+    int? score)
+    {
+        if (score >= 80)
+        {
+            return "hot";
+        }
+
+        if (score >= 60)
+        {
+            return "warm";
+        }
+
+        if (score >= 40)
+        {
+            return "medium";
+        }
+
+        return "cold";
+    }
+
+    private string GetLastActivityText(
+    int leadId)
+    {
+        if (!lastActivityMap.TryGetValue(
+            leadId,
+            out var lastActivity))
+        {
+            return "Keine Aktivität";
+        }
+
+        var diff =
+            DateTime.UtcNow - lastActivity;
+
+        if (diff.TotalMinutes < 1)
+        {
+            return "Gerade eben";
+        }
+
+        if (diff.TotalMinutes < 60)
+        {
+            return $"vor {(int)diff.TotalMinutes} Min.";
+        }
+
+        if (diff.TotalHours < 24)
+        {
+            return $"vor {(int)diff.TotalHours} Std.";
+        }
+
+        if (diff.TotalDays < 30)
+        {
+            return $"vor {(int)diff.TotalDays} Tagen";
+        }
+
+        return lastActivity
+            .ToLocalTime()
+            .ToString("dd.MM.yyyy");
+    }
+
+    private async Task DropLead(string newStatus)
+    {
+        if (draggedLeadId == null)
+        {
+            return;
+        }
+
+        var lead = leads.FirstOrDefault(x => x.Id == draggedLeadId.Value);
+
+        if (lead == null)
+        {
+            draggedLeadId = null;
+            return;
+        }
+
+        if (lead.Status == newStatus)
+        {
+            draggedLeadId = null;
+            return;
+        }
+
+        await UpdateLeadStatus(lead, newStatus);
+
+        draggedLeadId = null;
+    }
+
+    private async Task UpdateLeadStatus(
+        LeadOptimizerLead lead,
+        string newStatus)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var dbLead = await db.LeadOptimizerLeads
+            .FirstOrDefaultAsync(x => x.Id == lead.Id);
+
+        if (dbLead == null)
+        {
+            return;
+        }
+
+        dbLead.Status = newStatus;
+        dbLead.UpdatedAt = DateTime.UtcNow;
+
+        db.LeadOptimizerLeadEvents.Add(
+            new LeadOptimizerLeadEvent
+            {
+                LeadId = dbLead.Id,
+                EventType = "pipeline_status_changed",
+                Title = "Pipeline Status geändert",
+                Description =
+                    $"Neuer Status: {newStatus}",
+                CreatedAt = DateTime.UtcNow
+            });
+
+        await db.SaveChangesAsync();
+
+        await LoadLeads();
+    }
+
+    private void OpenLead(
+        int leadId)
+    {
+        Navigation.NavigateTo(
+            $"/tools/lead-optimizer/leads/{leadId}");
+    }
+
+    public class PipelineColumn(
+        string status,
+        string title)
+    {
+        public string Status { get; set; } = status;
+
+        public string Title { get; set; } = title;
+    }
+}

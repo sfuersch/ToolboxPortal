@@ -121,6 +121,8 @@ public class CatchLeadExportService
                 });
 
             lead.ExportedAt = DateTime.UtcNow;
+            lead.Status = "ExportedToCrm";
+            lead.UpdatedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync();
         }

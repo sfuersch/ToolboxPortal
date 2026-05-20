@@ -1,0 +1,210 @@
+﻿@page "/admin/tenants"
+@attribute [Authorize(Roles = "SuperAdmin")]
+
+@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+
+@inject IServiceScopeFactory ScopeFactory
+
+<PageTitle>Mandanten</PageTitle>
+
+<h1 class="page-title">
+    Mandanten
+</h1>
+
+<p class="page-subtitle">
+    Globale Mandantenverwaltung der Toolbox.
+</p>
+
+<div class="card p-4 mt-4">
+
+    <h3>Neuer Mandant</h3>
+
+    <div class="row">
+
+        <div class="col-md-6 mb-3">
+            <label>Name</label>
+
+            <input class="form-control"
+                   @bind="newTenant.Name" />
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label>Slug</label>
+
+            <input class="form-control"
+                   @bind="newTenant.Slug" />
+        </div>
+
+    </div>
+
+    <button class="btn btn-primary"
+            @onclick="SaveTenant">
+        Mandant speichern
+    </button>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="alert alert-info mt-3">
+            @message
+        </div>
+    }
+
+</div>
+
+<div class="card p-4 mt-4">
+
+    <h3>Bestehende Mandanten</h3>
+
+    @if (!tenants.Any())
+    {
+        <p>Noch keine Mandanten vorhanden.</p>
+    }
+    else
+    {
+        <table class="table">
+
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Slug</th>
+                    <th>Status</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var tenant in tenants)
+                {
+                    <tr>
+                        <td>@tenant.Name</td>
+                        <td>@tenant.Slug</td>
+                        <td>
+                            @if (tenant.IsActive)
+                            {
+                                <span class="badge bg-success">Aktiv</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Inaktiv</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => ToggleTenant(tenant.Id)">
+                                @(tenant.IsActive ? "Deaktivieren" : "Aktivieren")
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+
+        </table>
+    }
+
+</div>
+
+@code {
+    private List<Tenant> tenants = new();
+
+    private Tenant newTenant = new();
+
+    private string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTenants();
+    }
+
+    private async Task LoadTenants()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        tenants = await db.Tenants
+            .AsNoTracking()
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private async Task SaveTenant()
+    {
+        if (string.IsNullOrWhiteSpace(newTenant.Name))
+        {
+            message = "Bitte einen Namen eingeben.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newTenant.Slug))
+        {
+            newTenant.Slug = GenerateSlug(newTenant.Name);
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var slugExists = await db.Tenants
+            .AnyAsync(x => x.Slug == newTenant.Slug);
+
+        if (slugExists)
+        {
+            message = "Dieser Slug ist bereits vergeben.";
+            return;
+        }
+
+        newTenant.IsActive = true;
+        newTenant.CreatedAt = DateTime.UtcNow;
+        newTenant.UpdatedAt = DateTime.UtcNow;
+
+        db.Tenants.Add(newTenant);
+
+        await db.SaveChangesAsync();
+
+        message = "Mandant wurde angelegt.";
+
+        newTenant = new Tenant();
+
+        await LoadTenants();
+    }
+
+    private async Task ToggleTenant(int tenantId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var tenant = await db.Tenants
+            .FirstOrDefaultAsync(x => x.Id == tenantId);
+
+        if (tenant == null)
+        {
+            return;
+        }
+
+        tenant.IsActive = !tenant.IsActive;
+        tenant.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync();
+
+        await LoadTenants();
+    }
+
+    private static string GenerateSlug(string value)
+    {
+        return value
+            .Trim()
+            .ToLower()
+            .Replace("ä", "ae")
+            .Replace("ö", "oe")
+            .Replace("ü", "ue")
+            .Replace("ß", "ss")
+            .Replace(" ", "-")
+            .Replace("_", "-");
+    }
+}

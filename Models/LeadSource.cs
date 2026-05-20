@@ -4,6 +4,10 @@ public class LeadSource
 {
     public int Id { get; set; }
 
+    public int? TenantId { get; set; }
+
+    public Tenant? Tenant { get; set; }
+
     public string UserId { get; set; } = "";
 
     public string Name { get; set; } = "";

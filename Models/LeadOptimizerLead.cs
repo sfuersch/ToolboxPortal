@@ -4,6 +4,10 @@ public class LeadOptimizerLead
 {
     public int Id { get; set; }
 
+    public int? TenantId { get; set; }
+
+    public Tenant? Tenant { get; set; }
+
     public string UserId { get; set; } = "";
 
     public int? LeadSourceId { get; set; }

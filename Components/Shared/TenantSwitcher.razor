@@ -1,0 +1,76 @@
+﻿@using Microsoft.EntityFrameworkCore
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+@using ToolboxPortal.Services
+
+@inject IServiceScopeFactory ScopeFactory
+@inject CurrentTenantService CurrentTenantService
+@inject NavigationManager Navigation
+
+@if (isSuperAdmin && tenants.Any())
+{
+    <div class="tenant-switcher">
+
+        <select class="form-select form-select-sm"
+                value="@selectedTenantId"
+                @onchange="OnTenantChanged">
+
+            @foreach (var tenant in tenants)
+            {
+                <option value="@tenant.Id">
+                    @tenant.Name
+                </option>
+            }
+
+        </select>
+
+    </div>
+}
+
+@code {
+    private bool isSuperAdmin;
+    private List<Tenant> tenants = new();
+    private int? selectedTenantId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isSuperAdmin = await CurrentTenantService.IsSuperAdminAsync();
+
+        if (!isSuperAdmin)
+        {
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        tenants = await db.Tenants
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+
+        var currentTenant =
+            await CurrentTenantService.GetCurrentTenantAsync();
+
+        selectedTenantId = currentTenant?.Id;
+    }
+
+    private async Task OnTenantChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+
+        if (!int.TryParse(value, out var tenantId))
+        {
+            return;
+        }
+
+        await CurrentTenantService.SetCurrentTenantAsync(tenantId);
+
+        Navigation.NavigateTo(
+            Navigation.Uri,
+            forceLoad: true);
+    }
+}

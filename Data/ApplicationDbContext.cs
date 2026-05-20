@@ -55,6 +55,13 @@ namespace ToolboxPortal.Data
         public DbSet<AutomationJob> AutomationJobs
     => Set<AutomationJob>();
 
+        public DbSet<Tenant> Tenants => Set<Tenant>();
+
+        public DbSet<TenantUser> TenantUsers => Set<TenantUser>();
+
+        public DbSet<UserTenantSelection> UserTenantSelections
+    => Set<UserTenantSelection>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

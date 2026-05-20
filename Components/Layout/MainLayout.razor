@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
 @using ToolboxPortal.Services
+@using ToolboxPortal.Components.Shared
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ModuleAccessService ModuleAccessService
@@ -69,7 +70,12 @@
                             <div class="nav-section-title">
                                 Administration
                             </div>
-
+                            @if (isSuperAdmin)
+                            {
+                                <NavLink href="/admin/tenants">
+                                    Mandanten
+                                </NavLink>
+                            }
                             <NavLink href="/admin/users">
                                 Benutzerverwaltung
                             </NavLink>
@@ -122,7 +128,7 @@
 
     <main class="portal-main">
         <header class="portal-topbar">
-
+            <TenantSwitcher />
             <button class="theme-toggle" onclick="toggleTheme()">
                 Darkmode
             </button>
@@ -185,6 +191,7 @@
     private bool canAccessThg;
     private bool canAccessLeadOptimizer;
     private bool isAdmin;
+    private bool isSuperAdmin;
 
     protected override async Task OnInitializedAsync()
     {
@@ -200,6 +207,7 @@
         }
 
         isAdmin = authState.User.IsInRole("Admin");
+        isSuperAdmin = authState.User.IsInRole("SuperAdmin");
 
         canAccessAi = await ModuleAccessService.HasAccessAsync(
             userId,

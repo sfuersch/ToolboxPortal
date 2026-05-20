@@ -6,7 +6,9 @@
 @using ToolboxPortal.Models
 @using Microsoft.AspNetCore.Identity
 @using System.Security.Claims
+@using ToolboxPortal.Services
 
+@inject CurrentTenantService CurrentTenantService
 @inject IServiceScopeFactory ScopeFactory
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -1983,7 +1985,17 @@
             return;
         }
 
-        newSource.UserId = userId;
+        var tenantId =
+    await CurrentTenantService.GetCurrentTenantIdAsync();
+
+        if (tenantId == null)
+        {
+            sourceMessage = "Kein aktiver Mandant ausgewählt.";
+            return;
+        }
+
+        newSource.UserId = user.Id;
+        newSource.TenantId = tenantId.Value;
 
         db.LeadSources.Add(newSource);
 

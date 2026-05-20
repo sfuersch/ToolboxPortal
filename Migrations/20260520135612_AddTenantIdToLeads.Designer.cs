@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ToolboxPortal.Data;
@@ -11,9 +12,11 @@ using ToolboxPortal.Data;
 namespace ToolboxPortal.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260520135612_AddTenantIdToLeads")]
+    partial class AddTenantIdToLeads
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1062,9 +1065,6 @@ namespace ToolboxPortal.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int?>("TenantId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1073,8 +1073,6 @@ namespace ToolboxPortal.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TenantId");
 
                     b.ToTable("LeadSources");
                 });
@@ -1633,15 +1631,6 @@ namespace ToolboxPortal.Migrations
                         .IsRequired();
 
                     b.Navigation("Lead");
-                });
-
-            modelBuilder.Entity("ToolboxPortal.Models.LeadSource", b =>
-                {
-                    b.HasOne("ToolboxPortal.Models.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId");
-
-                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("ToolboxPortal.Models.TenantUser", b =>

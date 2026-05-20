@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ToolboxPortal.Data;
@@ -11,9 +12,11 @@ using ToolboxPortal.Data;
 namespace ToolboxPortal.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260520132535_AddTenants")]
+    partial class AddTenants
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -895,9 +898,6 @@ namespace ToolboxPortal.Migrations
                     b.Property<string>("Street")
                         .HasColumnType("text");
 
-                    b.Property<int?>("TenantId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("TradeInVehicle")
                         .HasColumnType("text");
 
@@ -955,8 +955,6 @@ namespace ToolboxPortal.Migrations
                     b.HasIndex("LeadCampaignId");
 
                     b.HasIndex("LeadSourceId");
-
-                    b.HasIndex("TenantId");
 
                     b.ToTable("LeadOptimizerLeads");
                 });
@@ -1062,9 +1060,6 @@ namespace ToolboxPortal.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int?>("TenantId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1073,8 +1068,6 @@ namespace ToolboxPortal.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("TenantId");
 
                     b.ToTable("LeadSources");
                 });
@@ -1432,31 +1425,6 @@ namespace ToolboxPortal.Migrations
                     b.ToTable("UserModuleAccesses");
                 });
 
-            modelBuilder.Entity("ToolboxPortal.Models.UserTenantSelection", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("TenantId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("UserTenantSelections");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -1602,15 +1570,9 @@ namespace ToolboxPortal.Migrations
                         .WithMany()
                         .HasForeignKey("LeadSourceId");
 
-                    b.HasOne("ToolboxPortal.Models.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId");
-
                     b.Navigation("LeadCampaign");
 
                     b.Navigation("LeadSource");
-
-                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("ToolboxPortal.Models.LeadOptimizerLeadEvent", b =>
@@ -1635,15 +1597,6 @@ namespace ToolboxPortal.Migrations
                     b.Navigation("Lead");
                 });
 
-            modelBuilder.Entity("ToolboxPortal.Models.LeadSource", b =>
-                {
-                    b.HasOne("ToolboxPortal.Models.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId");
-
-                    b.Navigation("Tenant");
-                });
-
             modelBuilder.Entity("ToolboxPortal.Models.TenantUser", b =>
                 {
                     b.HasOne("ToolboxPortal.Models.Tenant", "Tenant")
@@ -1664,17 +1617,6 @@ namespace ToolboxPortal.Migrations
                         .IsRequired();
 
                     b.Navigation("Customer");
-                });
-
-            modelBuilder.Entity("ToolboxPortal.Models.UserTenantSelection", b =>
-                {
-                    b.HasOne("ToolboxPortal.Models.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("ToolboxPortal.Models.AiChatSession", b =>

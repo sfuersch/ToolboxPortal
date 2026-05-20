@@ -102,9 +102,7 @@ builder.Services.AddScoped<ThgMailTemplateService>();
 builder.Services.AddScoped<ThgFollowUpService>();
 builder.Services.AddScoped<ThgScrapingService>();
 builder.Services.AddControllers();
-
-// Später aktivieren, wenn Livebetrieb stabil ist:
-// builder.Services.AddHostedService<ThgFollowUpBackgroundService>();
+builder.Services.AddScoped<CurrentTenantService>();
 
 var app = builder.Build();
 
@@ -115,6 +113,11 @@ using (var scope = app.Services.CreateScope())
 
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+    if (!await roleManager.RoleExistsAsync("SuperAdmin"))
+    {
+        await roleManager.CreateAsync(new IdentityRole("SuperAdmin"));
+    }
 
     if (!await roleManager.RoleExistsAsync("Admin"))
     {
@@ -132,9 +135,17 @@ using (var scope = app.Services.CreateScope())
     {
         var adminUser = await userManager.FindByEmailAsync(adminEmail);
 
-        if (adminUser != null && !await userManager.IsInRoleAsync(adminUser, "Admin"))
+        if (adminUser != null)
         {
-            await userManager.AddToRoleAsync(adminUser, "Admin");
+            if (!await userManager.IsInRoleAsync(adminUser, "SuperAdmin"))
+            {
+                await userManager.AddToRoleAsync(adminUser, "SuperAdmin");
+            }
+
+            if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
+            {
+                await userManager.AddToRoleAsync(adminUser, "Admin");
+            }
         }
     }
 }

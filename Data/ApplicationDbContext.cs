@@ -62,6 +62,9 @@ namespace ToolboxPortal.Data
         public DbSet<UserTenantSelection> UserTenantSelections
     => Set<UserTenantSelection>();
 
+        public DbSet<TenantModuleAccess> TenantModuleAccesses
+    => Set<TenantModuleAccess>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

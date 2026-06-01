@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.EntityFrameworkCore;
 using ToolboxPortal.Data;
 
 namespace ToolboxPortal.Services;
@@ -7,16 +8,16 @@ namespace ToolboxPortal.Services;
 public class TenantRoleService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly AuthenticationStateService _authenticationStateService;
+    private readonly AuthenticationStateProvider _authenticationStateProvider;
     private readonly CurrentTenantService _currentTenantService;
 
     public TenantRoleService(
         IServiceScopeFactory scopeFactory,
-        AuthenticationStateService authenticationStateService,
+        AuthenticationStateProvider authenticationStateProvider,
         CurrentTenantService currentTenantService)
     {
         _scopeFactory = scopeFactory;
-        _authenticationStateService = authenticationStateService;
+        _authenticationStateProvider = authenticationStateProvider;
         _currentTenantService = currentTenantService;
     }
 
@@ -42,8 +43,7 @@ public class TenantRoleService
 
     public async Task<bool> HasRoleAsync(string role)
     {
-        var userId =
-            await _authenticationStateService.GetCurrentUserIdAsync();
+        var userId = await GetCurrentUserIdAsync();
 
         var tenantId =
             await _currentTenantService.GetCurrentTenantIdAsync();
@@ -71,8 +71,7 @@ public class TenantRoleService
     public async Task<bool> HasAnyRoleAsync(
         params string[] roles)
     {
-        var userId =
-            await _authenticationStateService.GetCurrentUserIdAsync();
+        var userId = await GetCurrentUserIdAsync();
 
         var tenantId =
             await _currentTenantService.GetCurrentTenantIdAsync();
@@ -95,5 +94,14 @@ public class TenantRoleService
                 && x.TenantId == tenantId
                 && roles.Contains(x.Role)
                 && x.IsActive);
+    }
+
+    private async Task<string?> GetCurrentUserIdAsync()
+    {
+        var authState =
+            await _authenticationStateProvider.GetAuthenticationStateAsync();
+
+        return authState.User.FindFirstValue(
+            ClaimTypes.NameIdentifier);
     }
 }

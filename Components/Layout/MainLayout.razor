@@ -7,6 +7,7 @@
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ModuleAccessService ModuleAccessService
+@inject TenantRoleService TenantRoleService
 
 <div class="portal-shell" id="portalShell">
     <aside class="portal-sidebar">
@@ -61,6 +62,21 @@
                                     Lead Optimierung
                                 </NavLink>
                             }
+                        </div>
+                    }
+
+                    @if (isTenantAdmin)
+                    {
+                        <div class="nav-section">
+
+                            <div class="nav-section-title">
+                                Mandant
+                            </div>
+
+                            <NavLink href="/team">
+                                Team
+                            </NavLink>
+
                         </div>
                     }
 
@@ -192,6 +208,7 @@
     private bool canAccessLeadOptimizer;
     private bool isAdmin;
     private bool isSuperAdmin;
+    private bool isTenantAdmin;
 
     protected override async Task OnInitializedAsync()
     {
@@ -208,6 +225,8 @@
 
         isAdmin = authState.User.IsInRole("Admin");
         isSuperAdmin = authState.User.IsInRole("SuperAdmin");
+        isTenantAdmin =
+    await TenantRoleService.IsTenantAdminAsync();
 
         canAccessAi = await ModuleAccessService.HasAccessAsync(
             userId,

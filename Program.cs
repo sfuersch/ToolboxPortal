@@ -103,6 +103,7 @@ builder.Services.AddScoped<ThgFollowUpService>();
 builder.Services.AddScoped<ThgScrapingService>();
 builder.Services.AddControllers();
 builder.Services.AddScoped<CurrentTenantService>();
+builder.Services.AddScoped<TenantRoleService>();
 
 var app = builder.Build();
 

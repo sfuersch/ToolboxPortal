@@ -3,7 +3,7 @@
 
 @using Microsoft.EntityFrameworkCore
 @using ToolboxPortal.Data
-@using ToolboxPortal.Models
+@using TenantModel = ToolboxPortal.Models.Tenant
 
 @inject IServiceScopeFactory ScopeFactory
 
@@ -80,26 +80,41 @@
                     <tr>
                         <td>@tenant.Name</td>
                         <td>@tenant.Slug</td>
+
                         <td>
                             @if (tenant.IsActive)
                             {
-                                <span class="badge bg-success">Aktiv</span>
+                                <span class="badge bg-success">
+                                    Aktiv
+                                </span>
                             }
                             else
                             {
-                                <span class="badge bg-secondary">Inaktiv</span>
+                                <span class="badge bg-secondary">
+                                    Inaktiv
+                                </span>
                             }
                         </td>
-                        <td>
-                            <a class="btn btn-sm btn-outline-primary"
-                                   href="/admin/tenants/@tenant.Id/modules">
-                                Module
-                            </a>
-                            <button class="btn btn-sm btn-outline-secondary"
-                                    @onclick="() => ToggleTenant(tenant.Id)">
-                                @(tenant.IsActive ? "Deaktivieren" : "Aktivieren")
-                            </button>
 
+                        <td>
+                            <div class="d-flex gap-2 flex-wrap">
+
+                                <a class="btn btn-sm btn-outline-primary"
+                                       href="/admin/tenants/@tenant.Id/modules">
+                                    Module
+                                </a>
+
+                                <a class="btn btn-sm btn-outline-primary"
+                                       href="/admin/tenants/@tenant.Id/users">
+                                    Benutzer
+                                </a>
+
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => ToggleTenant(tenant.Id)">
+                                    @(tenant.IsActive ? "Deaktivieren" : "Aktivieren")
+                                </button>
+
+                            </div>
                         </td>
                     </tr>
                 }
@@ -111,9 +126,9 @@
 </div>
 
 @code {
-    private List<Tenant> tenants = new();
+    private List<TenantModel> tenants = new();
 
-    private Tenant newTenant = new();
+    private TenantModel newTenant = new();
 
     private string message = "";
 
@@ -172,7 +187,7 @@
 
         message = "Mandant wurde angelegt.";
 
-        newTenant = new Tenant();
+        newTenant = new TenantModel();
 
         await LoadTenants();
     }

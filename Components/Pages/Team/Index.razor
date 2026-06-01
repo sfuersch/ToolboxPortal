@@ -1,0 +1,268 @@
+﻿@page "/team"
+@attribute [Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Identity
+@using ToolboxPortal.Data
+@using ToolboxPortal.Models
+@using ToolboxPortal.Services
+
+@inject IServiceScopeFactory ScopeFactory
+@inject UserManager<ApplicationUser> UserManager
+@inject CurrentTenantService CurrentTenantService
+@inject TenantRoleService TenantRoleService
+
+<PageTitle>Team</PageTitle>
+
+@if (isLoading)
+{
+    <p>Lade Team...</p>
+}
+else if (!hasAccess)
+{
+    <div class="alert alert-danger">
+        Du hast keine Berechtigung für die Teamverwaltung.
+    </div>
+}
+else if (tenant == null)
+{
+    <div class="alert alert-warning">
+        Kein aktiver Mandant ausgewählt.
+    </div>
+}
+else
+{
+    <h1 class="page-title">Team</h1>
+
+    <p class="page-subtitle">
+        Benutzerverwaltung für @tenant.Name
+    </p>
+
+    <div class="card p-4 mt-4">
+        <h3>Benutzer hinzufügen</h3>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>E-Mail</label>
+                <input class="form-control" @bind="newUserEmail" />
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <label>Rolle</label>
+                <select class="form-select" @bind="newUserRole">
+                    <option>Admin</option>
+                    <option>Sales</option>
+                    <option>Marketing</option>
+                    <option>Viewer</option>
+                </select>
+            </div>
+        </div>
+
+        <button class="btn btn-primary" @onclick="AddUserToTenant">
+            Benutzer zuordnen
+        </button>
+
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="alert alert-info mt-3">@message</div>
+        }
+    </div>
+
+    <div class="card p-4 mt-4">
+        <h3>Benutzer</h3>
+
+        @if (!tenantUsers.Any())
+        {
+            <p>Noch keine Benutzer zugeordnet.</p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>E-Mail</th>
+                        <th>Rolle</th>
+                        <th>Status</th>
+                        <th>Aktion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in tenantUsers)
+                    {
+                        <tr>
+                            <td>@item.Email</td>
+                            <td>@item.Role</td>
+                            <td>
+                                @if (item.IsActive)
+                                {
+                                    <span class="badge bg-success">Aktiv</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inaktiv</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => ToggleTenantUser(item.TenantUserId)">
+                                    @(item.IsActive ? "Deaktivieren" : "Aktivieren")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool hasAccess;
+    private ToolboxPortal.Models.Tenant? tenant;
+    private int? tenantId;
+
+    private List<TenantUserViewModel> tenantUsers = new();
+
+    private string newUserEmail = "";
+    private string newUserRole = "Sales";
+    private string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        hasAccess = await TenantRoleService.IsTenantAdminAsync();
+
+        tenant = await CurrentTenantService.GetCurrentTenantAsync();
+        tenantId = tenant?.Id;
+
+        if (hasAccess && tenantId != null)
+        {
+            await LoadUsers();
+        }
+
+        isLoading = false;
+    }
+
+    private async Task LoadUsers()
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var rawTenantUsers = await db.TenantUsers
+            .AsNoTracking()
+            .Where(x => x.TenantId == tenantId)
+            .OrderBy(x => x.Role)
+            .ToListAsync();
+
+        tenantUsers = new();
+
+        foreach (var tenantUser in rawTenantUsers)
+        {
+            var user = await UserManager.FindByIdAsync(tenantUser.UserId);
+
+            tenantUsers.Add(new TenantUserViewModel
+            {
+                TenantUserId = tenantUser.Id,
+                UserId = tenantUser.UserId,
+                Email = user?.Email ?? tenantUser.UserId,
+                Role = tenantUser.Role,
+                IsActive = tenantUser.IsActive
+            });
+        }
+    }
+
+    private async Task AddUserToTenant()
+    {
+        if (tenantId == null)
+        {
+            message = "Kein aktiver Mandant ausgewählt.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newUserEmail))
+        {
+            message = "Bitte eine E-Mail-Adresse eingeben.";
+            return;
+        }
+
+        var user = await UserManager.FindByEmailAsync(newUserEmail);
+
+        if (user == null)
+        {
+            message = "Benutzer wurde nicht gefunden.";
+            return;
+        }
+
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var existing = await db.TenantUsers
+            .FirstOrDefaultAsync(x =>
+                x.TenantId == tenantId &&
+                x.UserId == user.Id);
+
+        if (existing == null)
+        {
+            db.TenantUsers.Add(new TenantUser
+            {
+                TenantId = tenantId.Value,
+                UserId = user.Id,
+                Role = newUserRole,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            message = "Benutzer wurde dem Mandanten zugeordnet.";
+        }
+        else
+        {
+            existing.Role = newUserRole;
+            existing.IsActive = true;
+            message = "Benutzerzuordnung wurde aktualisiert.";
+        }
+
+        await db.SaveChangesAsync();
+
+        newUserEmail = "";
+        newUserRole = "Sales";
+
+        await LoadUsers();
+    }
+
+    private async Task ToggleTenantUser(int tenantUserId)
+    {
+        using var scope = ScopeFactory.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var tenantUser = await db.TenantUsers
+            .FirstOrDefaultAsync(x =>
+                x.Id == tenantUserId &&
+                x.TenantId == tenantId);
+
+        if (tenantUser == null)
+        {
+            return;
+        }
+
+        tenantUser.IsActive = !tenantUser.IsActive;
+
+        await db.SaveChangesAsync();
+
+        await LoadUsers();
+    }
+
+    private class TenantUserViewModel
+    {
+        public int TenantUserId { get; set; }
+        public string UserId { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+}

@@ -5,3 +5,9 @@ obj/
 *.user
 *.suo
 appsettings.Development.json
+# Runtime credentials and local verification are not application build inputs.
+.env
+keys/
+tests/
+docs/
+docker-compose*.yml

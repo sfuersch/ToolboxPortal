@@ -65,9 +65,29 @@ namespace ToolboxPortal.Data
         public DbSet<TenantModuleAccess> TenantModuleAccesses
     => Set<TenantModuleAccess>();
 
+        public DbSet<Funnel> Funnels => Set<Funnel>();
+        public DbSet<FunnelStep> FunnelSteps => Set<FunnelStep>();
+        public DbSet<DomainMapping> DomainMappings => Set<DomainMapping>();
+        public DbSet<Recipient> Recipients => Set<Recipient>();
+        public DbSet<FunnelEvent> FunnelEvents => Set<FunnelEvent>();
+        public DbSet<Lead> FunnelLeads => Set<Lead>();
+        public DbSet<VideoBinding> VideoBindings => Set<VideoBinding>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
+            builder.Entity<Funnel>().HasIndex(x => x.Slug).IsUnique();
+            builder.Entity<DomainMapping>().HasIndex(x => x.Host).IsUnique();
+            builder.Entity<Recipient>().Property(x => x.LastSeenAt).IsConcurrencyToken();
+            builder.Entity<FunnelEvent>().HasIndex(x => new { x.RecipientId, x.Type }).IsUnique().HasFilter("\"FunnelStepId\" IS NULL AND \"Type\" IN ('open', 'complete')");
+            builder.Entity<Recipient>().HasIndex(x => x.PublicId).IsUnique();
+            builder.Entity<FunnelStep>().HasIndex(x => new { x.FunnelId, x.SortOrder });
+            builder.Entity<FunnelEvent>().HasIndex(x => new { x.RecipientId, x.Type, x.FunnelStepId }).IsUnique();
+            builder.Entity<FunnelEvent>().HasOne(x => x.FunnelStep).WithMany()
+                .HasForeignKey(x => x.FunnelStepId).OnDelete(DeleteBehavior.SetNull);
+            builder.Entity<Lead>().ToTable("FunnelLeads").HasOne(x => x.Recipient)
+                .WithOne(x => x.Lead).HasForeignKey<Lead>(x => x.RecipientId);
+            builder.Entity<VideoBinding>().HasIndex(x => x.FunnelStepId).IsUnique();
 
             builder.Entity<IdentityUserPasskey<string>>()
                 .OwnsOne(x => x.Data, owned =>

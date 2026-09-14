@@ -1,0 +1,88 @@
+@page "/funnel"
+@page "/funnel/{Slug}"
+@layout PublicLayout
+@attribute [AllowAnonymous]
+@using ToolboxPortal.Models
+@using ToolboxPortal.Services
+@inject FunnelRuntimeService Runtime
+@inject NavigationManager Navigation
+
+<PageTitle>@(Runtime.Funnel?.Name ?? "Funnel")</PageTitle>
+<div class="container py-5" style="max-width:760px">
+@if (loading) { <p>Lade …</p> }
+else if (!found) { <h1>Funnel nicht verfügbar</h1><p>Bitte den Kampagnenlink prüfen.</p> }
+else if (Runtime.Complete) { <h1>Vielen Dank!</h1><p>Ihre Angaben wurden gespeichert.</p> }
+else if (Runtime.Step is { } step)
+{
+    <p>Schritt @(Runtime.Position + 1) von @Runtime.Funnel!.Steps.Count</p>
+    <h1>@Runtime.Personalize(step.Title)</h1>
+    <p style="white-space:pre-wrap">@Runtime.Personalize(step.Content)</p>
+    <fieldset disabled="@busy">
+    @if (step.Type == FunnelStepType.Question)
+    {
+        <label>Ihre Antwort<select class="form-select" @bind="answer"><option value="">Bitte auswählen</option>
+        @foreach (var option in FunnelRuntimeService.Options(step)) { <option value="@option">@Runtime.Personalize(option)</option> }
+        </select></label>
+    }
+    @if (step.Type == FunnelStepType.Contact)
+    {
+        <div class="d-grid gap-2">
+        <label>Vorname<input class="form-control" maxlength="120" autocomplete="given-name" @bind="first" /></label>
+        <label>Nachname<input class="form-control" maxlength="120" autocomplete="family-name" @bind="last" /></label>
+        <label>Firma<input class="form-control" maxlength="200" autocomplete="organization" @bind="company" /></label>
+        <label>E-Mail<input class="form-control" type="email" maxlength="254" autocomplete="email" @bind="email" /></label>
+        <label>Telefon (optional)<input class="form-control" type="tel" maxlength="60" autocomplete="tel" @bind="phone" /></label>
+        </div>
+    }
+    <button class="btn btn-primary mt-4" @onclick="Next">@(Runtime.Position + 1 == Runtime.Funnel!.Steps.Count ? "Abschließen" : "Weiter")</button>
+    </fieldset>
+}
+@if (error != null) { <p class="alert alert-danger mt-3" role="alert">@error</p> }
+</div>
+@code {
+    [Parameter] public string? Slug { get; set; }
+    [SupplyParameterFromQuery(Name = "id")] public string? PublicId { get; set; }
+    [SupplyParameterFromQuery(Name = "vorname")] public string? FirstName { get; set; }
+    [SupplyParameterFromQuery(Name = "name")] public string? LastName { get; set; }
+    [SupplyParameterFromQuery(Name = "nachname")] public string? Surname { get; set; }
+    [SupplyParameterFromQuery(Name = "firma")] public string? Company { get; set; }
+    private bool loading = true, found, busy;
+    private string answer = "", first = "", last = "", company = "", email = "", phone = "";
+    private string? error;
+    private string? openedSlug, openedToken;
+    protected override void OnParametersSet()
+    {
+        // A different campaign/token needs a fresh public circuit, including same-component routing.
+        if (!loading && (openedSlug != Slug || openedToken != PublicId)) Navigation.Refresh(forceReload: true);
+    }
+    // Record visits only after interactive connection, not during prerender as well.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            openedSlug = Slug; openedToken = PublicId;
+            found = await Runtime.OpenAsync(new Uri(Navigation.Uri), Slug, PublicId, FirstName, Surname ?? LastName, Company);
+            if (found)
+            {
+                first = Runtime.Recipient!.FirstName; last = Runtime.Recipient.LastName; company = Runtime.Recipient.Company;
+                email = Runtime.Recipient.Lead?.Email ?? ""; phone = Runtime.Recipient.Lead?.Phone ?? "";
+                openedToken = Runtime.Recipient.PublicId.ToString();
+                Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> {
+                    ["id"] = Runtime.Recipient.PublicId.ToString(), ["vorname"] = null, ["name"] = null, ["nachname"] = null, ["firma"] = null
+                }), replace: true);
+            }
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException) { error = "Aufruf konnte nicht gespeichert werden. Bitte erneut laden."; }
+        finally { loading = false; StateHasChanged(); }
+    }
+    private async Task Next()
+    {
+        if (busy) return;
+        busy = true; error = null;
+        try { await Runtime.NextAsync(answer, first, last, company, email, phone); answer = ""; }
+        catch (System.ComponentModel.DataAnnotations.ValidationException ex) { error = ex.Message; }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException) { error = "Speichern fehlgeschlagen. Bitte erneut laden."; }
+        finally { busy = false; }
+    }
+}

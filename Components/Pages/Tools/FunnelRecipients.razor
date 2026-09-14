@@ -1,0 +1,125 @@
+@page "/tools/funnels/{Id:int}/recipients"
+@attribute [Authorize]
+@using System.Text.Json
+@using ToolboxPortal.Models
+@using ToolboxPortal.Services
+@inject FunnelAdminService Admin
+
+<PageTitle>Funnel – Empfänger und Tracking</PageTitle>
+<h1>Empfänger &amp; Tracking</h1>
+<a href="/tools/funnels/@Id">Zurück zum Editor</a>
+@if (message != null) { <p class="alert alert-info mt-3" role="status">@message</p> }
+@if (loading) { <p>Lade …</p> }
+else if (funnel != null)
+{
+    <h2 class="mt-3">@funnel.Name</h2>
+    @if (!funnel.IsPublished) { <p class="alert alert-warning">Dieser Funnel ist noch nicht veröffentlicht. Empfängerlinks werden erst nach Veröffentlichung nutzbar.</p> }
+    @if (publicBase == null) { <p class="alert alert-warning">Für vollständige Links bitte eine geprüfte Domain aktivieren oder die öffentliche Basisadresse konfigurieren.</p> }
+    <fieldset disabled="@busy" class="card p-3 my-3">
+        <legend>Empfänger vorbereiten</legend>
+        <label>Vorname<input class="form-control" maxlength="120" @bind="first" /></label>
+        <label>Nachname<input class="form-control" maxlength="120" @bind="last" /></label>
+        <label>Firma<input class="form-control" maxlength="200" @bind="company" /></label>
+        <button class="btn btn-primary mt-3" @onclick="Add">Empfänger anlegen</button>
+    </fieldset>
+    <button class="btn btn-outline-secondary mb-3" disabled="@busy" @onclick="Refresh">Aktualisieren</button>
+    <p>Seite @(page + 1) · bis zu 50 Empfänger pro Seite. Zeitangaben in UTC.</p>
+    @if (rows.Count == 0) { <p>Noch keine Empfänger vorhanden.</p> }
+    else
+    {
+        <div class="table-responsive"><table class="table">
+        <thead><tr><th>Empfänger</th><th>Status</th><th>Erster / letzter Aufruf (UTC)</th><th>Kontakt</th><th>Link &amp; Details</th></tr></thead>
+        <tbody>@foreach (var row in rows.Take(50))
+        {
+            <tr><td>@row.FirstName @row.LastName<br />@row.Company</td>
+            <td>@Status(row.Status)</td><td>@Time(row.OpenedAt)<br />@Time(row.LastSeenAt)</td>
+            <td>@row.Lead?.Email<br />@row.Lead?.Phone</td>
+            <td>
+                @if (publicBase != null)
+                { <input class="form-control" readonly aria-label="Personalisierter Link" value="@(publicBase + "?id=" + row.PublicId)" onclick="this.select()" /> }
+                <button class="btn btn-sm btn-outline-primary mt-1" disabled="@busy" @onclick="() => Details(row)">Details</button>
+            </td></tr>
+        }</tbody></table></div>
+    }
+    <button class="btn btn-outline-secondary" disabled="@(busy || page == 0)" @onclick="Previous">Zurück</button>
+    <button class="btn btn-outline-secondary" disabled="@(busy || rows.Count <= 50)" @onclick="Next">Weiter</button>
+    @if (selected != null)
+    {
+        <section class="card p-3 mt-4">
+            <h2>@selected.FirstName @selected.LastName – Verlauf</h2>
+            <p>@selected.Company · @selected.Lead?.Email · @selected.Lead?.Phone</p>
+            <p>Abgeschlossen: @Time(selected.CompletedAt)</p>
+            @if (events.Count == 0) { <p>Der Link wurde noch nicht geöffnet.</p> }
+            else
+            {
+                <ol>@foreach (var item in events)
+                { <li>@Time(item.CreatedAt) – @Status(item.Type) @if (item.FunnelStep != null) { <span>· @item.FunnelStep.Title</span> }</li> }</ol>
+            }
+            <h3>Antworten</h3>
+            @if (answers.Count == 0) { <p>Noch keine Antworten.</p> }
+            else { <dl>@foreach (var answer in answers)
+            { <dt>@(funnel.Steps.FirstOrDefault(x => x.Id == answer.Key)?.Title ?? $"Entfernter Schritt #{answer.Key}")</dt><dd>@answer.Value</dd> }</dl> }
+        </section>
+    }
+}
+@code {
+    [Parameter] public int Id { get; set; }
+    private Funnel? funnel;
+    private List<Recipient> rows = [];
+    private List<FunnelEvent> events = [];
+    private Dictionary<int, string> answers = [];
+    private Recipient? selected;
+    private string? message, publicBase;
+    private string first = "", last = "", company = "";
+    private int page;
+    private bool loading = true, busy;
+    protected override async Task OnParametersSetAsync() { page = 0; await Refresh(); }
+    private async Task Refresh()
+    {
+        busy = true; loading = true; selected = null; message = null;
+        try
+        {
+            funnel = await Admin.GetAsync(Id);
+            if (funnel == null) { rows = []; message = "Funnel nicht gefunden."; return; }
+            publicBase = await Admin.PublicBaseAsync(Id);
+            rows = await Admin.RecipientsAsync(Id, page);
+        }
+        catch (UnauthorizedAccessException) { funnel = null; rows = []; message = "Kein Zugriff auf diesen Funnel."; }
+        finally { loading = false; busy = false; }
+    }
+    private async Task Add()
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            await Admin.AddRecipientAsync(Id, first, last, company);
+            first = last = company = ""; page = 0; await Refresh(); message = "Empfänger angelegt. Der erste Aufruf wird erst beim Öffnen seines Links erfasst.";
+        }
+        catch (System.ComponentModel.DataAnnotations.ValidationException ex) { message = ex.Message; }
+        catch (UnauthorizedAccessException) { funnel = null; message = "Kein Zugriff auf diesen Funnel."; }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException) { message = "Empfänger konnte nicht gespeichert werden. Bitte erneut versuchen."; }
+        finally { busy = false; }
+    }
+    private async Task Details(Recipient row)
+    {
+        if (busy) return;
+        busy = true; selected = null;
+        try
+        {
+            events = await Admin.EventsAsync(Id, row.Id);
+            answers = JsonSerializer.Deserialize<Dictionary<int, string>>(row.Lead?.AnswersJson ?? "{}") ?? [];
+            selected = row;
+        }
+        catch (UnauthorizedAccessException) { funnel = null; rows = []; message = "Kein Zugriff auf diesen Funnel."; }
+        catch (JsonException) { message = "Die gespeicherten Antworten konnten nicht gelesen werden."; }
+        finally { busy = false; }
+    }
+    private async Task Previous() { if (page > 0) { page--; await Refresh(); } }
+    private async Task Next() { if (rows.Count > 50) { page++; await Refresh(); } }
+    private static string Time(DateTime? value) => value?.ToString("dd.MM.yyyy HH:mm:ss") ?? "–";
+    private static string Status(string value) => value switch {
+        "pending" => "Noch nicht geöffnet", "open" => "Geöffnet", "step" => "Schritt erreicht",
+        "reveal" => "Reveal erreicht", "questions" => "Fragen erreicht", "complete" => "Abgeschlossen", _ => value
+    };
+}

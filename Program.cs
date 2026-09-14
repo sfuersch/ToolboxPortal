@@ -102,6 +102,8 @@ builder.Services.AddScoped<ThgMailTemplateService>();
 builder.Services.AddScoped<ThgFollowUpService>();
 builder.Services.AddScoped<ThgScrapingService>();
 builder.Services.AddControllers();
+builder.Services.AddScoped<FunnelAdminService>();
+builder.Services.AddScoped<FunnelRuntimeService>();
 builder.Services.AddScoped<CurrentTenantService>();
 builder.Services.AddScoped<TenantRoleService>();
 
@@ -157,6 +159,22 @@ if (args.Contains("--migrate"))
 }
 
 app.UseForwardedHeaders();
+
+// A mapped campaign domain starts at its root; routing remains separate from admin pages.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/")
+    {
+        var db = context.RequestServices.GetRequiredService<ApplicationDbContext>();
+        var host = FunnelRuntimeService.NormalizeHost(context.Request.Host.Host);
+        if (await db.DomainMappings.AnyAsync(x => x.Host == host && x.IsEnabled))
+        {
+            context.Response.Redirect("/funnel" + context.Request.QueryString);
+            return;
+        }
+    }
+    await next(context);
+});
 
 
 if (app.Environment.IsDevelopment())

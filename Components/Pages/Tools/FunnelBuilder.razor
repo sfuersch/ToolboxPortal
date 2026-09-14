@@ -1,0 +1,122 @@
+@page "/tools/funnels"
+@page "/tools/funnels/{Id:int}"
+@attribute [Authorize]
+@using ToolboxPortal.Models
+@using ToolboxPortal.Services
+@inject FunnelAdminService Admin
+@inject NavigationManager Navigation
+
+<PageTitle>Funnel Builder</PageTitle>
+<h1>Funnel Builder</h1>
+@if (message != null) { <div class="alert alert-info" role="status">@message</div> }
+@if (loading) { <p>Lade Funnels …</p> }
+else if (allowed)
+{
+    @if (model == null)
+    {
+        <button class="btn btn-primary mb-3" @onclick="New">Neuer Funnel</button>
+        @if (funnels.Count == 0) { <p>Noch keine Funnels vorhanden.</p> }
+        <table class="table"><thead><tr><th>Name</th><th>Slug</th><th>Status</th><th></th></tr></thead>
+        <tbody>@foreach (var funnel in funnels)
+        {
+            <tr><td>@funnel.Name</td><td>@funnel.Slug</td><td>@(funnel.IsPublished ? "Veröffentlicht" : "Entwurf")</td><td><a href="/tools/funnels/@funnel.Id">Bearbeiten</a> · <a href="/tools/funnels/@funnel.Id/recipients">Empfänger &amp; Tracking</a></td></tr>
+        }</tbody></table>
+    }
+    else
+    {
+        <a class="btn btn-outline-secondary mb-3" href="/tools/funnels">Zur Übersicht</a>
+        @if (model.Id != 0) { <a class="btn btn-outline-primary mb-3" href="/tools/funnels/@model.Id/recipients">Empfänger &amp; Tracking</a> }
+        <EditForm Model="model" OnValidSubmit="Save" FormName="funnel-editor">
+            <DataAnnotationsValidator /><ValidationSummary />
+            <fieldset disabled="@busy">
+            <div class="card p-4 mb-3">
+                <label>Name<InputText class="form-control" @bind-Value="model.Name" /></label>
+                <label>Slug<InputText class="form-control" @bind-Value="model.Slug" /></label>
+                <label>Beschreibung<InputTextArea class="form-control" @bind-Value="model.Description" /></label>
+                <label><InputCheckbox @bind-Value="model.IsPublished" /> Veröffentlicht</label>
+                <p class="text-muted">Öffentliche Route: /funnel/@model.Slug – auf einem freigegebenen Runtime-Host.</p>
+            </div>
+            <h2>Schritte</h2>
+            <p>Platzhalter: Vorname, Nachname, Firma, EmpfaengerId. Im Inhalt mit doppelten geschweiften Klammern schreiben, z. B. <code>@("{{Vorname}}")</code>.</p>
+            @foreach (var step in model.Steps)
+            {
+                <div class="card p-3 mb-3" @key="step">
+                    <label>Typ<InputSelect class="form-select" @bind-Value="step.Type">
+                        <option value="@FunnelStepType.Text">Text</option><option value="@FunnelStepType.Question">Auswahlfrage</option>
+                        <option value="@FunnelStepType.Contact">Kontaktformular</option><option value="@FunnelStepType.Reveal">Reveal</option>
+                    </InputSelect></label>
+                    <label>Titel<InputText class="form-control" @bind-Value="step.Title" /></label>
+                    <label>Text<InputTextArea class="form-control" rows="4" @bind-Value="step.Content" /></label>
+                    @if (step.Type == FunnelStepType.Question)
+                    { <label>Antworten (eine pro Zeile)<InputTextArea class="form-control" @bind-Value="step.Options" /></label> }
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="() => Move(step, -1)">Nach oben</button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="() => Move(step, 1)">Nach unten</button>
+                        <button type="button" class="btn btn-outline-danger" @onclick="() => model.Steps.Remove(step)">Entfernen</button>
+                    </div>
+                </div>
+            }
+            <button type="button" class="btn btn-outline-primary mb-3" @onclick="() => model.Steps.Add(new FunnelStep())">Schritt hinzufügen</button>
+            <h2>Domains</h2>
+            <p>Neue Domains warten auf manuelle Prüfung und Freischaltung durch den Betreiber.</p>
+            @foreach (var domain in model.Domains)
+            {
+                <div class="mb-2" @key="domain">@domain.Host — @(domain.IsEnabled ? "Aktiv" : "Prüfung ausstehend")
+                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => model.Domains.Remove(domain)">Entfernen</button>
+                </div>
+            }
+            <label>Domain<input class="form-control" @bind="newHost" placeholder="aktion.beispiel.de" /></label>
+            <button type="button" class="btn btn-outline-secondary" @onclick="AddDomain">Domain vormerken</button>
+            <div class="mt-4"><button class="btn btn-primary" type="submit">Speichern</button></div>
+            </fieldset>
+        </EditForm>
+    }
+}
+@code {
+    [Parameter] public int? Id { get; set; }
+    private List<Funnel> funnels = [];
+    private Funnel? model;
+    private bool loading = true, allowed, busy;
+    private string? message;
+    private string newHost = "";
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true; message = null; model = null;
+        try
+        {
+            await Admin.RequireTenantAsync(); allowed = true;
+            if (Id.HasValue) { model = await Admin.GetAsync(Id.Value); if (model == null) message = "Funnel nicht gefunden."; }
+            else funnels = await Admin.ListAsync();
+        }
+        catch (UnauthorizedAccessException ex) { allowed = false; message = ex.Message; }
+        finally { loading = false; }
+    }
+    private void New() { model = new Funnel(); message = null; }
+    private void Move(FunnelStep step, int offset)
+    {
+        var index = model!.Steps.IndexOf(step); var target = index + offset;
+        if (target < 0 || target >= model.Steps.Count) return;
+        model.Steps.RemoveAt(index); model.Steps.Insert(target, step);
+    }
+    private void AddDomain()
+    {
+        if (string.IsNullOrWhiteSpace(newHost)) return;
+        model!.Domains.Add(new DomainMapping { Host = newHost.Trim() }); newHost = "";
+    }
+    private async Task Save()
+    {
+        if (busy || model == null) return;
+        busy = true;
+        try
+        {
+            var id = await Admin.SaveAsync(model);
+            model = await Admin.GetAsync(id);
+            message = "Gespeichert.";
+            if (Id != id) Navigation.NavigateTo($"/tools/funnels/{id}");
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.DataAnnotations.ValidationException or UnauthorizedAccessException or ArgumentException)
+        { message = ex.Message; }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException) { message = "Speichern fehlgeschlagen. Bitte Slug und Domains auf doppelte Einträge prüfen und erneut laden."; }
+        finally { busy = false; }
+    }
+}

@@ -35,13 +35,17 @@
                         </NavLink>
                     </div>
 
-                    @if (canAccessAi || canAccessThg || canAccessLeadOptimizer)
+                    @if (canAccessAi || canAccessThg || canAccessLeadOptimizer || canAccessFunnels)
                     {
                         <div class="nav-section">
                             <div class="nav-section-title">
                                 Tools
                             </div>
 
+                            @if (canAccessFunnels)
+                            {
+                                <NavLink href="/tools/funnels">Funnel Builder</NavLink>
+                            }
                             @if (canAccessAi)
                             {
                                 <NavLink href="/tools/ai">
@@ -203,6 +207,7 @@
 </div>
 
 @code {
+    private bool canAccessFunnels;
     private bool canAccessAi;
     private bool canAccessThg;
     private bool canAccessLeadOptimizer;
@@ -227,6 +232,8 @@
         isSuperAdmin = authState.User.IsInRole("SuperAdmin");
         isTenantAdmin =
     await TenantRoleService.IsTenantAdminAsync();
+
+        canAccessFunnels = await ModuleAccessService.HasAccessAsync(userId, "funnel-builder");
 
         canAccessAi = await ModuleAccessService.HasAccessAsync(
             userId,
